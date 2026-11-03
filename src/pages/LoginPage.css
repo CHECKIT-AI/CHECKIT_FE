@@ -1,0 +1,58 @@
+.login-card {
+  max-width: 440px;
+  margin: 56px auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.4px;
+}
+
+.login-card__sub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.login-card__social {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-social {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.btn-kakao {
+  background: #fee500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.btn-kakao:hover {
+  background: #f5dc00;
+}
+
+.btn-google {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn-google:hover {
+  background: #f7f6fa;
+}
