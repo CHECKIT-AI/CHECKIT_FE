@@ -56,3 +56,18 @@
 .btn-google:hover {
   background: #f7f6fa;
 }
+
+.btn-social:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.login-card__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--amber-bg);
+  color: var(--amber);
+}

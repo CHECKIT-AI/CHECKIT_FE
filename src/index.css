@@ -121,3 +121,13 @@ label:focus-within {
   padding: 0 16px;
   border-radius: 12px;
 }
+
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+a.btn-primary:hover {
+  color: #fff;
+}

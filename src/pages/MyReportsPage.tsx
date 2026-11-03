@@ -80,7 +80,9 @@ function ReportCard({ report }: { report: Report }) {
 }
 
 function MyReportsPage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+
+  if (loading) return null
 
   if (!user) {
     return (

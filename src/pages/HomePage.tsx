@@ -14,7 +14,7 @@ const STEPS = [
 ]
 
 function HomePage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const navigate = useNavigate()
 
   // 소셜 로그인은 외부 사이트를 거쳐 돌아오므로 고른 파일이 사라집니다.
@@ -23,6 +23,10 @@ function HomePage() {
     navigate('/login', { state: { reason, returnTo: '/' } })
 
   const handleDropClick = (e: MouseEvent<HTMLLabelElement>) => {
+    if (loading) {
+      e.preventDefault()
+      return
+    }
     if (!user) {
       e.preventDefault() // 파일 선택창을 열지 않음
       goLogin('upload')
@@ -35,6 +39,7 @@ function HomePage() {
 
   const handleDrop = (e: DragEvent<HTMLLabelElement>) => {
     e.preventDefault()
+    if (loading) return
     if (!user) {
       goLogin('upload')
       return
@@ -43,6 +48,7 @@ function HomePage() {
   }
 
   const handleStart = () => {
+    if (loading) return
     if (!user) {
       goLogin('analyze')
       return

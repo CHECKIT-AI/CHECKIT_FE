@@ -1,11 +1,8 @@
-// 로그인 상태를 한 곳에서 제공합니다.
-// TODO: API 연결 시 GET /api/auth/me 결과로 대체 (미로그인 401 → user: null)
+import { useContext } from 'react'
+import { AuthContext } from './authContext'
 
-export type User = {
-  id: string
-  provider: 'EMAIL' | 'KAKAO' | 'GOOGLE'
-}
-
-export function useAuth(): { user: User | null } {
-  return { user: null }
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth는 AuthProvider 안에서 사용해야 합니다.')
+  return ctx
 }

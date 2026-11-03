@@ -1,8 +1,22 @@
-import { Link, NavLink } from 'react-router'
-import { DocCheckIcon } from './icons'
+import { Link, NavLink, useNavigate } from 'react-router'
+import { useAuth } from '../auth/useAuth'
+import { DocCheckIcon, GoogleIcon, KakaoIcon } from './icons'
 import './Header.css'
 
+const PROVIDER_LABEL = { GOOGLE: 'Google 계정', KAKAO: '카카오 계정', EMAIL: '이메일 계정' } as const
+
 function Header() {
+  const { user, loading, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } finally {
+      navigate('/')
+    }
+  }
+
   return (
     <header className="site-header">
       <div className="wrap site-header__inner">
@@ -21,9 +35,22 @@ function Header() {
         </nav>
 
         <div className="auth">
-          <Link to="/login" className="btn-login">
-            로그인
-          </Link>
+          {loading ? null : user ? (
+            <>
+              <span className="auth__account">
+                {user.provider === 'GOOGLE' && <GoogleIcon size={18} />}
+                {user.provider === 'KAKAO' && <KakaoIcon size={18} />}
+                {PROVIDER_LABEL[user.provider] ?? '로그인됨'}
+              </span>
+              <button type="button" className="btn-mini" onClick={handleLogout}>
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <Link to="/login" className="btn-login">
+              로그인
+            </Link>
+          )}
         </div>
       </div>
     </header>
