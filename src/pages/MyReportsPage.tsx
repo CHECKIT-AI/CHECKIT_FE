@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { useAuth } from '../auth/useAuth'
 import { DocLinesIcon, LockIcon } from '../components/icons'
 import { SAMPLE_REPORTS, type Report } from '../mocks/reports'
 import './MyReportsPage.css'
@@ -11,13 +12,17 @@ function formatDate(iso: string) {
 }
 
 /** 비로그인 상태 */
-export function LoginRequired() {
+function LoginRequired() {
   return (
     <div className="empty">
       <LockIcon size={40} strokeWidth={1.8} className="empty__icon" />
       <h2>로그인이 필요해요</h2>
       <p className="empty__sub">점검 리포트는 로그인한 계정에만 저장돼요.</p>
-      <Link to="/login" className="btn btn-primary btn-sm empty__action">
+      <Link
+        to="/login"
+        state={{ reason: 'reports', returnTo: '/reports' }}
+        className="btn btn-primary btn-sm empty__action"
+      >
         로그인하기
       </Link>
     </div>
@@ -75,7 +80,21 @@ function ReportCard({ report }: { report: Report }) {
 }
 
 function MyReportsPage() {
-  // TODO: API 연결 시 로그인 상태(GET /api/auth/me)와 목록(GET /api/contracts)으로 대체
+  const { user } = useAuth()
+
+  if (!user) {
+    return (
+      <section className="wrap">
+        <div className="page-head">
+          <h1>내 리포트</h1>
+          <p className="page-head__sub">로그인하면 점검한 계약서를 모아 볼 수 있어요.</p>
+        </div>
+        <LoginRequired />
+      </section>
+    )
+  }
+
+  // TODO: API 연결 시 목록(GET /api/contracts)으로 대체
   const reports = SAMPLE_REPORTS
   const withViolation = reports.filter((r) => r.summary.violation > 0).length
   const totalQuestions = reports.reduce((sum, r) => sum + r.summary.questions, 0)

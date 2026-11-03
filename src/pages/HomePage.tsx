@@ -1,3 +1,6 @@
+import type { DragEvent, MouseEvent } from 'react'
+import { useNavigate } from 'react-router'
+import { useAuth } from '../auth/useAuth'
 import { CheckIcon, LockIcon, UploadIcon } from '../components/icons'
 import './HomePage.css'
 
@@ -11,6 +14,42 @@ const STEPS = [
 ]
 
 function HomePage() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
+  // 소셜 로그인은 외부 사이트를 거쳐 돌아오므로 고른 파일이 사라집니다.
+  // 그래서 파일을 고르기 전에 로그인 여부를 먼저 확인합니다.
+  const goLogin = (reason: 'upload' | 'analyze') =>
+    navigate('/login', { state: { reason, returnTo: '/' } })
+
+  const handleDropClick = (e: MouseEvent<HTMLLabelElement>) => {
+    if (!user) {
+      e.preventDefault() // 파일 선택창을 열지 않음
+      goLogin('upload')
+    }
+  }
+
+  const handleDragOver = (e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault() // 브라우저가 파일을 직접 여는 것을 막음
+  }
+
+  const handleDrop = (e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    if (!user) {
+      goLogin('upload')
+      return
+    }
+    // TODO: 드롭한 파일 처리
+  }
+
+  const handleStart = () => {
+    if (!user) {
+      goLogin('analyze')
+      return
+    }
+    // TODO: 업로드·분석 API 연결
+  }
+
   return (
     <section className="wrap">
       <div className="hero">
@@ -43,7 +82,13 @@ function HomePage() {
             <p className="upload-card__sub">텍스트 파일을 올리거나, 계약서 내용을 붙여넣으세요.</p>
           </div>
 
-          <label className="drop" htmlFor="contract-file">
+          <label
+            className="drop"
+            htmlFor="contract-file"
+            onClick={handleDropClick}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
             <span className="drop__icon">
               <UploadIcon size={22} />
             </span>
@@ -75,7 +120,11 @@ function HomePage() {
             <button type="button" className="btn btn-ghost">
               사진 계약서로 체험
             </button>
-            <button type="button" className="btn btn-primary upload-card__start">
+            <button
+              type="button"
+              className="btn btn-primary upload-card__start"
+              onClick={handleStart}
+            >
               점검 시작하기
             </button>
           </div>
