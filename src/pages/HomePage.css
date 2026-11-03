@@ -1,0 +1,213 @@
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  padding: 48px 0 56px;
+}
+
+.hero__text {
+  flex: 999 1 460px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  justify-content: center;
+}
+
+.badge {
+  align-self: flex-start;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.headline {
+  margin: 0;
+  font-size: 42px;
+  line-height: 1.28;
+  letter-spacing: -1px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--ink2);
+  max-width: 580px;
+}
+
+.points {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.points li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink2);
+}
+
+.points__icon {
+  color: var(--accent);
+}
+
+/* 업로드 카드 */
+.upload-card {
+  flex: 1 1 420px;
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.upload-card h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.upload-card__sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.drop {
+  border: 2px dashed var(--accent-line);
+  border-radius: 16px;
+  background: #f8f7fc;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.drop:hover {
+  background: var(--accent-soft);
+}
+
+.drop__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.drop strong {
+  display: block;
+  font-size: 15px;
+}
+
+.drop small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.contract-text {
+  width: 100%;
+  min-height: 200px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.upload-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.upload-card__start {
+  flex: 1 1 200px;
+}
+
+.privacy {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.privacy__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* 점검 단계 */
+.section-title {
+  font-size: 24px;
+  margin: 0 0 16px;
+  letter-spacing: -0.4px;
+}
+
+.steps {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 0 56px;
+  margin: 0;
+  list-style: none;
+}
+
+.steps li {
+  flex: 1 1 220px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.steps__no {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.steps__title {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.steps__desc {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .headline {
+    font-size: 30px;
+  }
+
+  .hero {
+    padding: 28px 0 36px;
+  }
+}

@@ -1,3 +1,27 @@
+:root {
+  --bg: #f4f3f0;
+  --card: #ffffff;
+  --line: #e6e3ee;
+  --line2: #eeecf3;
+  --ink: #1c1a2b;
+  --ink2: #4a4658;
+  --muted: #5e5b6b;
+  --muted2: #6b6878;
+  --accent: #3a2e7a;
+  --accent-d: #251c57;
+  --accent-soft: #ece9f7;
+  --accent-line: #cfc8e6;
+  --red: #9a3412;
+  --red-bg: #fdede4;
+  --amber: #854d0e;
+  --amber-bg: #fbf0d5;
+  --blue: #1e40af;
+  --blue-bg: #e4ecfc;
+  --green: #166534;
+  --green-bg: #e7f2ec;
+  --paper: #fcfbf8;
+}
+
 *,
 *::before,
 *::after {
@@ -6,4 +30,87 @@
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  line-height: 1.5;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-d);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible,
+label:focus-within {
+  outline: 3px solid var(--accent-line);
+  outline-offset: 2px;
+}
+
+.wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* 공용 버튼 */
+.btn {
+  height: 52px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0 20px;
+  border: 0;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-d);
+}
+
+.btn-ghost {
+  background: var(--card);
+  color: var(--accent);
+  border: 1px solid #d6d1e6;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding: 0 16px;
+  }
 }
