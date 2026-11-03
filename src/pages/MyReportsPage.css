@@ -1,0 +1,179 @@
+.page-head {
+  padding: 28px 0 16px;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.4px;
+}
+
+.page-head__sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* 요약 통계 */
+.stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.stat {
+  flex: 1 1 200px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat span {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.stat b {
+  font-size: 26px;
+}
+
+.stat__value--red {
+  color: var(--red);
+}
+
+.stat__value--accent {
+  color: var(--accent);
+}
+
+/* 리포트 목록 */
+.rlist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 48px;
+}
+
+.rcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px 20px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rcard__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rcard__info {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rcard__info h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.rcard__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.rcard__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pill--red {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.pill--amber {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.pill--blue {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+.pill--green {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+/* 빈 상태 */
+.empty {
+  background: var(--card);
+  border: 1px dashed var(--accent-line);
+  border-radius: 20px;
+  padding: 40px 24px;
+  margin-bottom: 48px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.empty h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.empty__icon {
+  color: var(--accent);
+}
+
+.empty__sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.empty__action {
+  display: inline-flex;
+  align-items: center;
+}
+
+.empty__action:hover {
+  color: #fff;
+}

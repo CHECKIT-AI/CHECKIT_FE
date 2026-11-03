@@ -114,3 +114,10 @@ label:focus-within {
     padding: 0 16px;
   }
 }
+
+.btn-sm {
+  height: 42px;
+  font-size: 14px;
+  padding: 0 16px;
+  border-radius: 12px;
+}

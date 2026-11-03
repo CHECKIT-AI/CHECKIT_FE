@@ -17,10 +17,7 @@ function Header() {
           <NavLink to="/" end>
             계약서 점검
           </NavLink>
-          {/* 내 리포트 화면은 아직 없어 이동하지 않습니다. */}
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            내 리포트
-          </a>
+          <NavLink to="/reports">내 리포트</NavLink>
         </nav>
 
         <div className="auth">
