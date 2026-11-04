@@ -68,9 +68,9 @@ function ReportCard({ report }: { report: Report }) {
         </div>
       </div>
       <div className="rcard__actions">
-        <button type="button" className="btn btn-primary btn-sm">
+        <Link to={`/reports/${report.id}`} className="btn btn-primary btn-sm">
           리포트 보기
-        </button>
+        </Link>
         <button type="button" className="btn btn-ghost btn-sm" aria-label={`${report.title} 삭제`}>
           삭제
         </button>

@@ -5,6 +5,7 @@ import AuthCompletePage from './pages/AuthCompletePage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import MyReportsPage from './pages/MyReportsPage'
+import ReportPage from './pages/ReportPage'
 import ReviewPage from './pages/ReviewPage'
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Route path="/auth/complete" element={<AuthCompletePage />} />
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/reports" element={<MyReportsPage />} />
+          <Route path="/reports/:reportId" element={<ReportPage />} />
         </Routes>
       </main>
       <Footer />

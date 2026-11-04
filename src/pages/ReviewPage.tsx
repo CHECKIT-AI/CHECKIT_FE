@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router'
+import { Link, Navigate, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { DocLinesIcon } from '../components/icons'
 import { SAMPLE_EXTRACTION } from '../mocks/extraction'
@@ -85,6 +85,7 @@ function rowClass(line: Line) {
 
 function ReviewPage() {
   const { user, loading } = useAuth()
+  const navigate = useNavigate()
   // TODO: API 연결 시 업로드 응답(POST /api/contracts)으로 대체
   const [lines, setLines] = useState<Line[]>(() => toLines(SAMPLE_EXTRACTION))
   const [mode, setMode] = useState<'lines' | 'all'>('lines')
@@ -168,8 +169,9 @@ function ReviewPage() {
       setMessage('계약서 내용이 너무 짧아요. 원본을 보고 내용을 입력해 주세요.')
       return
     }
-    // TODO: 분석 API(POST /api/contracts/{id}/analyses)에 edited_blocks와 함께 전송
-    setMessage('확인이 끝났어요. 분석 기능은 아직 연결되지 않았어요.')
+    // TODO: 분석 API(POST /api/contracts/{id}/analyses)에 edited_blocks와 함께 전송하고,
+    //       응답의 결과로 리포트 화면을 보여줍니다. 지금은 분석이 끝났다고 가정하고 예시 리포트로 이동합니다.
+    navigate('/reports/sample-1')
   }
 
   const progress =

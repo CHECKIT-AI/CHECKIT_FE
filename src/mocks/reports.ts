@@ -29,7 +29,7 @@ export const SAMPLE_REPORTS: Report[] = [
     id: 'sample-1',
     title: 'OO카페 근로계약서',
     checkedAt: '2026-11-01T14:05:00',
-    summary: { violation: 1, warning: 2, missing: 1, needsCheck: 2, ok: 2, questions: 6, clauses: 8 },
+    summary: { violation: 1, warning: 2, missing: 1, needsCheck: 1, ok: 3, questions: 5, clauses: 8 },
   },
   {
     id: 'sample-2',

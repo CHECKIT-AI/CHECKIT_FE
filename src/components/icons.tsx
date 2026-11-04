@@ -101,3 +101,20 @@ export function DocLinesIcon(props: IconProps) {
     </Svg>
   )
 }
+
+export function BookIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" />
+      <path d="M8 7h6" />
+    </Svg>
+  )
+}
+
+export function ChatIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z" />
+    </Svg>
+  )
+}
