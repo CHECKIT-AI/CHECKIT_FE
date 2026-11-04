@@ -47,6 +47,16 @@ function HomePage() {
     // TODO: 드롭한 파일 처리
   }
 
+  // 예시 OCR 결과로 인식 결과 확인 화면을 체험합니다.
+  const handlePhotoDemo = () => {
+    if (loading) return
+    if (!user) {
+      goLogin('upload')
+      return
+    }
+    navigate('/review')
+  }
+
   const handleStart = () => {
     if (loading) return
     if (!user) {
@@ -123,7 +133,7 @@ function HomePage() {
             <button type="button" className="btn btn-ghost">
               샘플 계약서
             </button>
-            <button type="button" className="btn btn-ghost">
+            <button type="button" className="btn btn-ghost" onClick={handlePhotoDemo}>
               사진 계약서로 체험
             </button>
             <button

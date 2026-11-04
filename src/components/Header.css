@@ -90,18 +90,3 @@
   font-weight: 600;
   color: var(--ink2);
 }
-
-.btn-mini {
-  border: 1px solid #d6d1e6;
-  background: #fff;
-  color: var(--accent);
-  border-radius: 8px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.btn-mini:hover {
-  background: var(--accent-soft);
-}

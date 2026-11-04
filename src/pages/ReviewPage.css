@@ -1,0 +1,384 @@
+.review-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 28px 0 16px;
+}
+
+.review-head__sub {
+  margin: 0;
+  max-width: 640px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+
+.review-grid {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  gap: 16px;
+  padding-bottom: 40px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+.panel__head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line2);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.panel__head span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted2);
+}
+
+/* 원본 */
+.scan {
+  background: #e2ded6;
+  border-radius: 0 0 18px 18px;
+  padding: 22px 18px;
+  max-height: 640px;
+  overflow: auto;
+}
+
+.file-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ink2);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.file-card__icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.paper {
+  background: #fffefa;
+  transform: rotate(-0.7deg);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  padding: 26px 22px;
+  font-family: 'Batang', 'Nanum Myeongjo', serif;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: #2b2b2b;
+}
+
+.paper__line {
+  border-radius: 4px;
+  padding: 0 3px;
+  transition: background 0.15s;
+}
+
+.paper__line.faint {
+  opacity: 0.55;
+}
+
+.paper__line.blur {
+  filter: blur(1.1px);
+}
+
+.paper__line.on {
+  background: #ffe58a;
+  opacity: 1;
+  filter: none;
+}
+
+.paper__title {
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 6px;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+/* 인식 결과 */
+.ocr-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.ocr-tools {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.seg {
+  display: flex;
+  background: #e9e7ef;
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.seg button {
+  border: 0;
+  background: none;
+  border-radius: 9px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.seg button[aria-pressed='true'] {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.prog {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink2);
+  font-weight: 600;
+}
+
+.bar {
+  width: 140px;
+  height: 8px;
+  border-radius: 4px;
+  background: #e9e7ef;
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.ocr-lines {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 560px;
+  overflow: auto;
+}
+
+.ocr-line {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+}
+
+.ocr-line__no {
+  font-size: 12px;
+  color: var(--muted2);
+  padding-top: 9px;
+  text-align: right;
+}
+
+.ocr-line textarea {
+  display: block;
+  width: 100%;
+  resize: none;
+  /* 내용 길이에 맞춰 높이가 늘어납니다(미지원 브라우저는 스크롤). */
+  field-sizing: content;
+  min-height: 38px;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: transparent;
+}
+
+.ocr-line textarea:hover {
+  border-color: var(--line);
+}
+
+.ocr-line textarea:focus {
+  border-color: var(--accent-line);
+  background: #fff;
+  outline: none;
+}
+
+.ocr-line.low {
+  background: var(--amber-bg);
+  border-color: #ebcb8b;
+}
+
+.ocr-line.fail {
+  background: var(--red-bg);
+  border-color: #f0b49b;
+}
+
+.ocr-line.low textarea,
+.ocr-line.fail textarea {
+  background: #fff;
+  border-color: var(--line);
+}
+
+.ocr-line.done {
+  background: var(--green-bg);
+  border-color: #b9dcc6;
+}
+
+.ocr-line__hint {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 4px 2px 0;
+}
+
+.ocr-line.low .ocr-line__hint {
+  color: var(--amber);
+}
+
+.ocr-line.fail .ocr-line__hint {
+  color: var(--red);
+}
+
+.ocr-line__candidates {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 6px 2px 0;
+}
+
+.ocr-line__candidates .pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+}
+
+.ocr-line__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 6px;
+}
+
+.conf {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted2);
+}
+
+.conf--low {
+  color: var(--amber);
+}
+
+.conf--fail {
+  color: var(--red);
+}
+
+.conf--done {
+  color: var(--green);
+}
+
+.ocr-all {
+  margin: 12px;
+  width: calc(100% - 24px);
+  min-height: 420px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.ocr-foot {
+  padding: 14px 18px;
+  border-top: 1px solid var(--line2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ocr-msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.ocr-foot__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ocr-foot__submit {
+  flex: 1 1 200px;
+}
+
+/* 숫자 사이의 영문 O 표시 */
+.suspects {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 6px 2px 0;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+.suspects__token {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 13px;
+}
+
+.suspects__letter {
+  background: var(--red-bg);
+  color: var(--red);
+  border-radius: 3px;
+  padding: 0 1px;
+  font-weight: 700;
+}
