@@ -44,6 +44,8 @@ function NoReports() {
 
 function ReportCard({ report }: { report: Report }) {
   const s = report.summary
+  const risk = s.violation + s.warning
+  const requiredCheck = s.missing + s.needsCheck
   return (
     <article className="rcard">
       <span className="rcard__icon">
@@ -55,16 +57,15 @@ function ReportCard({ report }: { report: Report }) {
           {formatDate(report.checkedAt)} 점검 · 조항 {s.clauses}개 분석
         </div>
         <div className="pills">
-          {s.questions > 0 ? (
-            <span className="pill pill--amber">확인할 사항 {s.questions}개</span>
-          ) : (
+          {/* 리포트 화면 상단과 같은 기준: 위험 조항 전체, 확인이 필요한 필수 기재사항 */}
+          {risk + requiredCheck === 0 ? (
             <span className="pill pill--green">확인할 사항 없음</span>
+          ) : (
+            <>
+              <span className="pill pill--red">위험 조항 {risk}</span>
+              <span className="pill pill--amber">필수 기재사항 확인 {requiredCheck}</span>
+            </>
           )}
-          {s.violation > 0 && <span className="pill pill--red">법령 위반 가능성 {s.violation}</span>}
-          {s.warning > 0 && <span className="pill pill--amber">주의 조항 {s.warning}</span>}
-          {s.missing > 0 && <span className="pill pill--amber">누락 의심 {s.missing}</span>}
-          {s.needsCheck > 0 && <span className="pill pill--blue">추가 확인 {s.needsCheck}</span>}
-          <span className="pill pill--green">확인됨 {s.ok}</span>
         </div>
       </div>
       <div className="rcard__actions">
@@ -99,7 +100,6 @@ function MyReportsPage() {
   // TODO: API 연결 시 목록(GET /api/contracts)으로 대체
   const reports = SAMPLE_REPORTS
   const withViolation = reports.filter((r) => r.summary.violation > 0).length
-  const totalQuestions = reports.reduce((sum, r) => sum + r.summary.questions, 0)
 
   return (
     <section className="wrap">
@@ -116,10 +116,6 @@ function MyReportsPage() {
         <div className="stat">
           <span>법령 위반 가능성이 있는 계약서</span>
           <b className="stat__value--red">{withViolation}건</b>
-        </div>
-        <div className="stat">
-          <span>서명 전 확인할 사항 (전체)</span>
-          <b className="stat__value--accent">{totalQuestions}개</b>
         </div>
       </div>
 

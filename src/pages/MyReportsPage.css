@@ -47,10 +47,6 @@
   color: var(--red);
 }
 
-.stat__value--accent {
-  color: var(--accent);
-}
-
 /* 리포트 목록 */
 .rlist {
   display: flex;
@@ -125,20 +121,17 @@
   color: var(--red);
 }
 
+.pill--green {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
 .pill--amber {
   background: var(--amber-bg);
   color: var(--amber);
 }
 
-.pill--blue {
-  background: var(--blue-bg);
-  color: var(--blue);
-}
 
-.pill--green {
-  background: var(--green-bg);
-  color: var(--green);
-}
 
 /* 빈 상태 */
 .empty {
