@@ -22,32 +22,97 @@ import {
 import type { CheckItem, TextRevision } from '../types/api'
 import './ReportPage.css'
 
-/** 원문 패널: 페이지별로 나누고, 선택한 항목의 인용 문구를 강조합니다. */
+type Range = { start: number; end: number }
+
+/** 원문 한 줄의 종류: 제목 / 당사자 정보 / 조항 / 일반 문장 */
+type LineKind = 'title' | 'meta' | 'clause' | 'text'
+
+// "제7조(위약금)" 또는 "7. 임금:" 같은 조항 머리
+const CLAUSE_HEAD = /^(제\s*\d+\s*조(?:\s*\([^)]*\))?|\d+\s*[.)]\s*[^:：\n]{1,20}[:：])/
+
+function classify(line: string, index: number): { kind: LineKind; head: number } {
+  const t = line.trim()
+  const m = t.match(CLAUSE_HEAD)
+  if (m) return { kind: 'clause', head: line.indexOf(m[1]) + m[1].length }
+  if (index === 0 && /계\s*약\s*서/.test(t)) return { kind: 'title', head: 0 }
+  if (/^(사업주|사용자|근로자|대표|체결일)\s*[:：]/.test(t)) return { kind: 'meta', head: 0 }
+  return { kind: 'text', head: 0 }
+}
+
+/** content[start,end) 를 그리면서 강조 구간(hit)과 겹치는 부분만 <mark>로 감쌉니다. */
+function Piece({ content, start, end, hit, tone }: { content: string; start: number; end: number; hit: Range | null; tone: Tone }) {
+  if (!hit || hit.end <= start || hit.start >= end) return <>{content.slice(start, end)}</>
+  const s = Math.max(start, hit.start)
+  const e = Math.min(end, hit.end)
+  return (
+    <>
+      {content.slice(start, s)}
+      <mark className={`hl-${tone}`}>{content.slice(s, e)}</mark>
+      {content.slice(e, end)}
+    </>
+  )
+}
+
+/** 원문 패널: 계약서처럼 제목·당사자·조항을 나눠 보여주고, 선택한 항목의 인용 문구를 강조합니다. */
 function ContractText({ text, quote, tone }: { text: TextRevision; quote: string | null; tone: Tone }) {
   const bodyRef = useRef<HTMLDivElement>(null)
-  const hit = findQuote(text.content, quote)
+  const { content } = text
+  const hit = findQuote(content, quote)
 
   // 강조한 문구가 원문 영역에 보이도록 스크롤합니다.
   useEffect(() => {
-    const body = bodyRef.current
-    const mark = body?.querySelector<HTMLElement>('mark')
-    if (body && mark) body.scrollTop = Math.max(0, mark.offsetTop - 40) // .doc__body 기준 위치
+    // 첫 화면은 레이아웃이 잡힌 다음 프레임에 위치를 계산합니다.
+    const frame = requestAnimationFrame(() => {
+      const body = bodyRef.current
+      const target = body?.querySelector<HTMLElement>('.doc-line.is-hit')
+      if (!body || !target) return
+      const offset = target.getBoundingClientRect().top - body.getBoundingClientRect().top
+      body.scrollTop = Math.max(0, body.scrollTop + offset - 60)
+    })
+    return () => cancelAnimationFrame(frame)
   }, [hit?.start, hit?.end])
 
-  const pages = pageRanges(text.content, text.blocks)
+  const pages = pageRanges(content, text.blocks)
 
   return (
     <div className="doc__body" ref={bodyRef}>
       {pages.map((p) => {
-        const s = hit ? Math.max(p.start, Math.min(hit.start, p.end)) : p.end
-        const e = hit ? Math.max(s, Math.min(hit.end, p.end)) : p.end
+        // 페이지 안의 줄을 원문 글자 위치와 함께 나눕니다.
+        const lines: { start: number; end: number }[] = []
+        let at = p.start
+        for (const raw of content.slice(p.start, p.end).split('\n')) {
+          lines.push({ start: at, end: at + raw.length })
+          at += raw.length + 1
+        }
+        let row = 0
         return (
-          <div key={p.page} className="doc__page">
-            {pages.length > 1 && <div className="doc__page-no">{p.page}쪽</div>}
-            {text.content.slice(p.start, s)}
-            {e > s && <mark className={`hl-${tone}`}>{text.content.slice(s, e)}</mark>}
-            {text.content.slice(e, p.end)}
-          </div>
+          <article key={p.page} className="doc-sheet">
+            {pages.length > 1 && <div className="doc-sheet__page">{p.page}쪽</div>}
+            {lines.map((ln) => {
+              const line = content.slice(ln.start, ln.end)
+              if (!line.trim()) return null
+              const { kind, head } = classify(line, row++)
+              const isHit = Boolean(hit && hit.start < ln.end && hit.end > ln.start)
+              const props = { content, hit, tone }
+              return (
+                <div
+                  key={ln.start}
+                  className={`doc-line doc-line--${kind}${isHit ? ` is-hit hit-${tone}` : ''}`}
+                >
+                  {kind === 'clause' ? (
+                    <>
+                      <span className="doc-line__head">
+                        <Piece {...props} start={ln.start} end={ln.start + head} />
+                      </span>
+                      <Piece {...props} start={ln.start + head} end={ln.end} />
+                    </>
+                  ) : (
+                    <Piece {...props} start={ln.start} end={ln.end} />
+                  )}
+                </div>
+              )
+            })}
+          </article>
         )
       })}
     </div>
@@ -145,7 +210,8 @@ function ReportView({ reportId }: { reportId: string }) {
   const detail = SAMPLE_CONTRACTS[reportId] ?? null
   const items = detail?.current_result?.items ?? []
   const [selectedId, setSelectedId] = useState<string | null>(
-    () => items.find((i) => i.status !== 'PRESENT')?.id ?? items[0]?.id ?? null,
+    // 왼쪽 목록 순서대로 첫 항목을 선택합니다.
+    () => GROUPS.flatMap((g) => items.filter((i) => groupOf(i) === g.key))[0]?.id ?? null,
   )
   const [showPresent, setShowPresent] = useState(false)
 

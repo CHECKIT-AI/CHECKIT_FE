@@ -383,7 +383,8 @@
 .doc {
   display: flex;
   flex-direction: column;
-  max-height: 680px;
+  max-height: 720px;
+  overflow: hidden;
 }
 
 .doc__head {
@@ -402,28 +403,122 @@
 
 .doc__body {
   position: relative;
-  padding: 16px 20px;
+  padding: 18px;
   overflow: auto;
-  background: var(--paper);
+  background: #f1efe9;
   border-radius: 0 0 18px 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: var(--ink2);
-  white-space: pre-wrap;
+  gap: 14px;
 }
 
-.doc__page-no {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--muted2);
+/* 종이 한 장 */
+.doc-sheet {
+  background: #fff;
+  border: 1px solid #e7e3da;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(40, 30, 10, 0.05), 0 6px 18px rgba(40, 30, 10, 0.06);
+  padding: 26px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink2);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.doc-sheet__page {
+  align-self: flex-end;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
   margin-bottom: 4px;
 }
 
+.doc-line {
+  position: relative;
+  padding: 3px 10px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  transition: background 0.15s;
+}
+
+.doc-line--title {
+  text-align: center;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--ink);
+  padding-bottom: 14px;
+}
+
+.doc-line--meta {
+  font-size: 12.5px;
+  color: var(--muted2);
+  background: #faf9f6;
+  border-radius: 0;
+}
+
+.doc-line--meta + .doc-line:not(.doc-line--meta) {
+  margin-top: 14px;
+}
+
+.doc-line--clause {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.doc-line--clause + .doc-line--clause {
+  border-top: 1px dashed #ece8df;
+  border-radius: 0;
+}
+
+.doc-line__head {
+  display: block;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 1px;
+}
+
+/* 선택한 항목이 들어 있는 줄 */
+.doc-line.is-hit {
+  border-radius: 8px;
+  border-top-color: transparent;
+}
+
+.doc-line.hit-red {
+  background: #fdf3ee;
+  border-left-color: #c2410c;
+}
+
+.doc-line.hit-amber {
+  background: #fdf7ea;
+  border-left-color: #b45309;
+}
+
+.doc-line.hit-blue {
+  background: #f1f5fd;
+  border-left-color: #2f5bd3;
+}
+
+.doc-line.hit-green {
+  background: #f1f8f4;
+  border-left-color: #15803d;
+}
+
+.doc-line.hit-gray {
+  background: #f5f4f8;
+  border-left-color: #8a8698;
+}
+
+.doc-line.is-hit + .doc-line--clause {
+  border-top-color: transparent;
+}
+
 .doc__body mark {
-  color: inherit;
+  color: var(--ink);
   border-radius: 4px;
   padding: 1px 2px;
   font-weight: 600;
@@ -432,23 +527,23 @@
 }
 
 .doc__body mark.hl-red {
-  background: var(--red-bg);
+  background: #f9d9c9;
 }
 
 .doc__body mark.hl-amber {
-  background: var(--amber-bg);
+  background: #f6e2b5;
 }
 
 .doc__body mark.hl-blue {
-  background: var(--blue-bg);
+  background: #d5e1fa;
 }
 
 .doc__body mark.hl-green {
-  background: var(--green-bg);
+  background: #cfe8d9;
 }
 
 .doc__body mark.hl-gray {
-  background: #ece9f2;
+  background: #e4e1ec;
 }
 
 /* 리포트 없음·결과 없음 */

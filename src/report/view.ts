@@ -66,7 +66,10 @@ export function titleOf(item: CheckItem) {
   const known = CHECK_TITLE[item.check_code]
   if (known) return known
   const info = item.required_information[0] ?? item.rule_candidate?.required_information?.[0]
-  if (isDiscovered(item)) return info ? `${info} 관련 확인 사항` : '추가로 발견된 확인 사항'
+  if (isDiscovered(item)) {
+    const topic = item.labels[0] ?? info
+    return topic ? `${topic} 관련 확인 사항` : '추가로 발견된 확인 사항'
+  }
   return info ?? item.labels[0] ?? '점검 항목'
 }
 
