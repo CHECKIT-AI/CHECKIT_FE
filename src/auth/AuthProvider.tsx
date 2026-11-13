@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, ApiError, resetCsrf } from '../api/client'
+import type { MeResponse } from '../types/api'
 import { AuthContext, type User } from './authContext'
 
 async function fetchMe(): Promise<User | null> {
   try {
-    const data = await api<{ user: User }>('/api/auth/me')
+    const data = await api<MeResponse>('/api/auth/me')
     return data.user
   } catch (err) {
     // 미로그인은 401. 그 밖의 오류도 비로그인으로 처리합니다.

@@ -1,12 +1,7 @@
 import { createContext } from 'react'
+import type { User } from '../types/api'
 
-export type Provider = 'EMAIL' | 'KAKAO' | 'GOOGLE'
-
-export type User = {
-  id: string
-  status: string
-  provider: Provider
-}
+export type { Provider, User } from '../types/api'
 
 export type AuthState = {
   /** 로그인한 사용자. 비로그인이면 null */

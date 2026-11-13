@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { api, ApiError } from '../api/client'
 import { safeReturnPath } from '../auth/returnPath'
+import type { OAuthStartResponse } from '../types/api'
 import { useAuth } from '../auth/useAuth'
 import { GoogleIcon, KakaoIcon } from '../components/icons'
 import './LoginPage.css'
@@ -39,7 +40,7 @@ function LoginPage() {
     setPending(provider)
     setError(null)
     try {
-      const { authorization_url } = await api<{ authorization_url: string }>(
+      const { authorization_url } = await api<OAuthStartResponse>(
         `/api/auth/oauth/${provider}/start`,
         { method: 'POST', body: { return_path: returnTo } },
       )
