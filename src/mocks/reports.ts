@@ -1,46 +1,25 @@
-// 화면 확인용 예시 데이터입니다. API 연결 시 GET /api/contracts 응답으로 대체합니다.
+// 내 리포트 목록 확인용 예시 데이터 — 리포트 상세 예시(mocks/analysis.ts)에서 만듭니다.
+// TODO: 목록 연동 시 GET /api/contracts 응답으로 대체.
+//       단, 목록 응답(ContractSummary)에는 점검 결과 개수가 없어 카드의 개수 표시는 백엔드 협의가 필요합니다.
 
-export type ReportSummary = {
-  /** 법령 위반 가능성 */
-  violation: number
-  /** 주의 조항 (불리한 조건·명확성 부족) */
-  warning: number
-  /** 누락 의심 */
-  missing: number
-  /** 추가 확인 필요 */
-  needsCheck: number
-  /** 확인됨 */
-  ok: number
-  /** 서명 전 확인할 사항 */
-  questions: number
-  /** 분석한 조항 수 */
-  clauses: number
+import { groupCounts, type GroupKey } from '../report/view'
+import type { ContractSummary } from '../types/api'
+import { SAMPLE_CONTRACTS } from './analysis'
+
+export type ReportListItem = {
+  contract: ContractSummary
+  /** 점검이 끝난 시각. 분석 전이면 null */
+  checkedAt: string | null
+  /** 검토한 항목 수 */
+  itemCount: number
+  counts: Record<GroupKey, number> | null
 }
 
-export type Report = {
-  id: string
-  title: string
-  checkedAt: string
-  summary: ReportSummary
-}
-
-export const SAMPLE_REPORTS: Report[] = [
-  {
-    id: 'sample-1',
-    title: 'OO카페 근로계약서',
-    checkedAt: '2026-11-01T14:05:00',
-    summary: { violation: 1, warning: 2, missing: 1, needsCheck: 1, ok: 3, questions: 5, clauses: 8 },
-  },
-  {
-    id: 'sample-2',
-    title: 'OO편의점 근로계약서',
-    checkedAt: '2026-10-02T15:20:00',
-    summary: { violation: 1, warning: 0, missing: 2, needsCheck: 0, ok: 3, questions: 3, clauses: 5 },
-  },
-  {
-    id: 'sample-3',
-    title: 'OO학원 근로계약서',
-    checkedAt: '2026-09-18T10:42:00',
-    summary: { violation: 0, warning: 0, missing: 0, needsCheck: 0, ok: 5, questions: 0, clauses: 9 },
-  },
-]
+export const SAMPLE_REPORTS: ReportListItem[] = Object.values(SAMPLE_CONTRACTS)
+  .map(({ contract, current_result: r }) => ({
+    contract,
+    checkedAt: r?.completed_at ?? null,
+    itemCount: r?.items.length ?? 0,
+    counts: r ? groupCounts(r.items) : null,
+  }))
+  .sort((a, b) => b.contract.created_at.localeCompare(a.contract.created_at))

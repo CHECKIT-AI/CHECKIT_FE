@@ -131,6 +131,11 @@
   color: var(--amber);
 }
 
+.pill--blue {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
 
 
 /* 빈 상태 */

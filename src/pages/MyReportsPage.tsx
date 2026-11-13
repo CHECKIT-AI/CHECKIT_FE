@@ -1,15 +1,11 @@
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { DocLinesIcon, LockIcon } from '../components/icons'
-import { SAMPLE_REPORTS, type Report } from '../mocks/reports'
+import { SAMPLE_REPORTS, type ReportListItem } from '../mocks/reports'
+import { formatDateTime } from '../report/view'
 import './MyReportsPage.css'
 
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${hh}:${mm}`
-}
+const TITLE: Record<string, string> = { EMPLOYMENT: '근로계약서' }
 
 /** 비로그인 상태 */
 function LoginRequired() {
@@ -42,37 +38,39 @@ function NoReports() {
   )
 }
 
-function ReportCard({ report }: { report: Report }) {
-  const s = report.summary
-  const risk = s.violation + s.warning
-  const requiredCheck = s.missing + s.needsCheck
+function ReportCard({ report }: { report: ReportListItem }) {
+  const { contract, counts } = report
+  const title = TITLE[contract.contract_type] ?? '계약서'
+  const toCheck = counts ? counts.LEGAL_RISK + counts.DISADVANTAGE + counts.MISSING : 0
   return (
     <article className="rcard">
       <span className="rcard__icon">
         <DocLinesIcon size={22} />
       </span>
       <div className="rcard__info">
-        <h3>{report.title}</h3>
+        <h3>{title}</h3>
         <div className="rcard__meta">
-          {formatDate(report.checkedAt)} 점검 · 조항 {s.clauses}개 분석
+          {report.checkedAt
+            ? `${formatDateTime(report.checkedAt)} 점검 · 항목 ${report.itemCount}개 검토`
+            : `${formatDateTime(contract.created_at)} 저장 · 분석 전`}
         </div>
         <div className="pills">
-          {/* 리포트 화면 상단과 같은 기준: 위험 조항 전체, 확인이 필요한 필수 기재사항 */}
-          {risk + requiredCheck === 0 ? (
-            <span className="pill pill--green">확인할 사항 없음</span>
-          ) : (
+          {/* 리포트 화면 상단과 같은 기준 */}
+          {counts && toCheck === 0 && <span className="pill pill--green">확인할 사항 없음</span>}
+          {counts && toCheck > 0 && (
             <>
-              <span className="pill pill--red">위험 조항 {risk}</span>
-              <span className="pill pill--amber">필수 기재사항 확인 {requiredCheck}</span>
+              {counts.LEGAL_RISK > 0 && <span className="pill pill--red">위험 조항 {counts.LEGAL_RISK}</span>}
+              {counts.DISADVANTAGE > 0 && <span className="pill pill--blue">불리한 조건 {counts.DISADVANTAGE}</span>}
+              {counts.MISSING > 0 && <span className="pill pill--amber">필수 기재사항 확인 {counts.MISSING}</span>}
             </>
           )}
         </div>
       </div>
       <div className="rcard__actions">
-        <Link to={`/reports/${report.id}`} className="btn btn-primary btn-sm">
+        <Link to={`/reports/${contract.id}`} className="btn btn-primary btn-sm">
           리포트 보기
         </Link>
-        <button type="button" className="btn btn-ghost btn-sm" aria-label={`${report.title} 삭제`}>
+        <button type="button" className="btn btn-ghost btn-sm" aria-label={`${title} 삭제`}>
           삭제
         </button>
       </div>
@@ -99,7 +97,7 @@ function MyReportsPage() {
 
   // TODO: API 연결 시 목록(GET /api/contracts)으로 대체
   const reports = SAMPLE_REPORTS
-  const withViolation = reports.filter((r) => r.summary.violation > 0).length
+  const withRisk = reports.filter((r) => r.counts && r.counts.LEGAL_RISK > 0).length
 
   return (
     <section className="wrap">
@@ -114,8 +112,8 @@ function MyReportsPage() {
           <b>{reports.length}건</b>
         </div>
         <div className="stat">
-          <span>법령 위반 가능성이 있는 계약서</span>
-          <b className="stat__value--red">{withViolation}건</b>
+          <span>위험 조항이 있는 계약서</span>
+          <b className="stat__value--red">{withRisk}건</b>
         </div>
       </div>
 
@@ -124,7 +122,7 @@ function MyReportsPage() {
       ) : (
         <div className="rlist">
           {reports.map((report) => (
-            <ReportCard key={report.id} report={report} />
+            <ReportCard key={report.contract.id} report={report} />
           ))}
         </div>
       )}
