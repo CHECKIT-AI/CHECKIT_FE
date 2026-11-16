@@ -121,3 +121,45 @@ export function groupCounts(items: CheckItem[]): Record<GroupKey, number> {
   for (const it of items) counts[groupOf(it)] += 1
   return counts
 }
+
+/* ───────── 판단 보류 문구 ───────── */
+
+/**
+ * 백엔드가 Gemini 판단을 막을 때 설명 앞에 붙이거나 덮어쓰는 고정 문구.
+ * 기준: CHECKIT_BE app/analysis_jobs.py, app/analysis_llm.py (2026-11-13)
+ * TODO: 백엔드에 보류 이유 코드(예: hold_reason)가 생기면 문구 대신 코드로 판단합니다.
+ */
+const HOLD_PHRASES = [
+  '적용 시점과 법령 근거를 검증할 수 없어 판단을 보류합니다.',
+  '법령 인용을 검증할 수 없어 추가 판단을 보류합니다.',
+  '법령 인용을 검증할 수 없어 판단을 보류합니다.',
+]
+
+export type Explanation = {
+  /** 백엔드가 판단을 보류했는지 */
+  held: boolean
+  /** 화면에 보여줄 설명. 보류 문구는 빼고, 남는 설명이 없으면 규칙의 설명으로 채웁니다. */
+  text: string
+}
+
+function stripHold(raw: string) {
+  let text = raw
+  let held = false
+  for (const phrase of HOLD_PHRASES) {
+    if (text.includes(phrase)) {
+      held = true
+      text = text.split(phrase).join(' ')
+    }
+  }
+  return { held, text: text.replace(/\s+/g, ' ').trim() }
+}
+
+export function explanationOf(item: CheckItem): Explanation {
+  const own = stripHold(item.explanation)
+  if (own.text || !own.held) return own
+  // 보류 문구만 있으면 규칙이 처음 만든 설명(무엇을 확인해야 하는지)을 보여줍니다.
+  return { held: true, text: stripHold(item.rule_candidate?.explanation ?? '').text }
+}
+
+/** 이 길이를 넘는 인용 문구는 접어서 보여줍니다. */
+export const LONG_QUOTE = 120

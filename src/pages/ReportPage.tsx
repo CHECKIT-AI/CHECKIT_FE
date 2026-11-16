@@ -6,9 +6,11 @@ import { SAMPLE_CONTRACTS } from '../mocks/analysis'
 import {
   CATEGORY_LABEL,
   GROUPS,
+  LONG_QUOTE,
   STATUS_META,
   categoryOf,
   citationsFor,
+  explanationOf,
   findQuote,
   formatDate,
   groupCounts,
@@ -127,9 +129,27 @@ function ItemButton({ item, selected, onSelect }: { item: CheckItem; selected: b
       <span className="item__body">
         <span className={`item__title ${item.status === 'PRESENT' ? 'is-ok' : ''}`}>{titleOf(item)}</span>
         {isDiscovered(item) && <span className="item__sub">AI가 추가로 찾은 항목</span>}
+        {!isDiscovered(item) && explanationOf(item).held && <span className="item__sub">판단 보류</span>}
       </span>
       <span className={`pill tone-${st.tone}`}>{st.label}</span>
     </button>
+  )
+}
+
+/** 계약서 인용 문구. 길면 접어서 보여줍니다. */
+function Quote({ text, page }: { text: string; page?: number }) {
+  const long = text.length > LONG_QUOTE
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="quote">
+      <small>계약서{page ? ` ${page}쪽` : ''}에서 찾은 문구</small>
+      <span className={`quote__text${long && !open ? ' is-clamped' : ''}`}>{text}</span>
+      {long && (
+        <button type="button" className="quote__more" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? '접기' : '전체 보기'}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -138,6 +158,7 @@ function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnTyp
   const category = categoryOf(item)
   const page = item.source_locations[0]?.page
   const ask = item.status === 'PRESENT' ? [] : item.required_information
+  const explanation = explanationOf(item)
 
   return (
     <>
@@ -154,15 +175,20 @@ function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnTyp
       <h2>{titleOf(item)}</h2>
 
       {item.quoted_text ? (
-        <div className="quote">
-          <small>계약서{page ? ` ${page}쪽` : ''}에서 찾은 문구</small>
-          <span className="quote__text">{item.quoted_text}</span>
-        </div>
+        <Quote text={item.quoted_text} page={page} />
       ) : category === 'MISSING' && item.status !== 'PRESENT' ? (
         <div className="notfound">계약서에서 관련 문장을 찾지 못했어요. 사장님께 직접 확인해 보세요.</div>
       ) : null}
 
-      <p className="explain">{item.explanation}</p>
+      {explanation.held && (
+        <div className="hold" role="note">
+          <strong>판단을 보류했어요</strong>
+          근거가 되는 법령이나 적용 시점을 확인하지 못해, 위반인지 아닌지 단정하지 않았어요. 아래 내용을 참고해
+          사장님께 직접 확인해 보세요.
+        </div>
+      )}
+
+      {explanation.text && <p className="explain">{explanation.text}</p>}
 
       {citations.map((c) => (
         <div className="law" key={c.chunk_id}>

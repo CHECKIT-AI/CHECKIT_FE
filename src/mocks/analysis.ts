@@ -69,6 +69,8 @@ type Spec = {
   status: CheckStatus
   hint: CheckStatus
   explanation: string
+  /** 규칙의 1차 설명(rule_candidate.explanation). 없으면 explanation과 같게 둡니다. */
+  ruleExplanation?: string
   quote?: string
   clause?: string
   presence?: DocumentPresence | null
@@ -99,7 +101,7 @@ function makeItems(revision: string, specs: Spec[]): Built[] {
           category: s.category,
           clause_id: s.category === 'MISSING' ? null : loc[0]?.clause_id ?? null,
           check_code: s.code,
-          explanation: s.explanation,
+          explanation: s.ruleExplanation ?? s.explanation,
           quoted_text: s.category === 'MISSING' ? null : (s.quote ?? null),
           status_hint: s.hint,
           candidate_id: s.source === 'GEMINI' ? `scan_${String(i + 1).padStart(4, '0')}` : `candidate_${String(i + 1).padStart(4, '0')}`,
@@ -239,7 +241,8 @@ const S1 = contract({
     {
       id: 'a1e0c3b2-0007-4c1a-9a01-000000000007', code: 'MISSING_WAGE_COMPONENTS', category: 'MISSING', labels: ['임금'],
       status: 'NEEDS_CONFIRMATION', hint: 'NEEDS_CONFIRMATION', presence: 'UNCLEAR', clause: 'c0005', quote: '시급은 10,000원으로 하며',
-      explanation: '시급은 적혀 있지만 주휴수당 등 다른 수당이 포함되는지는 계약서만으로 알 수 없습니다.',
+      explanation: '적용 시점과 법령 근거를 검증할 수 없어 판단을 보류합니다.',
+      ruleExplanation: '임금 구성 항목의 명시 여부를 확인해야 합니다. 시급 외에 주휴수당 등 수당이 포함되는지 확인이 필요합니다.',
       info: ['주휴수당을 따로 지급하는지'],
       laws: [LAW.art17],
     },
@@ -313,7 +316,7 @@ const S2 = contract({
     {
       id: 'b2f1d4c3-0002-4d2b-8b02-000000000002', code: 'DISCOVERED_ISSUE', category: 'LEGAL_RISK', labels: ['계약 종료'], source: 'GEMINI',
       status: 'NEEDS_CONFIRMATION', hint: 'NEEDS_CONFIRMATION', clause: 'c0003', quote: '2026년 11월 16일부터 기간의 정함이 없음.',
-      explanation: '계약기간은 정해져 있지 않지만 수습기간이나 계약 해지 절차에 관한 내용이 없습니다. 법령 근거를 확인하지 못해 판단을 보류했어요.',
+      explanation: '적용 시점과 법령 근거를 검증할 수 없어 판단을 보류합니다. 계약기간은 정해져 있지 않지만 수습기간이나 계약 해지 절차에 관한 내용이 없습니다.',
       info: ['수습기간이 있는지', '그만둘 때 언제까지 알려야 하는지'],
     },
     {
