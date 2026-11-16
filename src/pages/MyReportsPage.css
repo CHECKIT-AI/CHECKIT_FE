@@ -175,3 +175,31 @@
 .empty__action:hover {
   color: #fff;
 }
+
+.pill--gray {
+  background: #f1eff5;
+  color: var(--ink2);
+}
+
+.list-note {
+  margin: 8px 0 24px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.sample-head {
+  margin: 8px 0 10px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--line);
+}
+
+.sample-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.sample-head p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}

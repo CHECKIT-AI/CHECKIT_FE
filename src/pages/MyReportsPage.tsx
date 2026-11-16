@@ -1,11 +1,49 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { ApiError } from '../api/client'
+import { deleteContract, getContract, listContracts } from '../api/contracts'
 import { useAuth } from '../auth/useAuth'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { DocLinesIcon, LockIcon } from '../components/icons'
-import { SAMPLE_REPORTS, type ReportListItem } from '../mocks/reports'
+import { isSampleId, SAMPLE_REPORTS } from '../mocks/reports'
+import { toListItem, type ReportListItem } from '../report/list'
 import { formatDateTime } from '../report/view'
 import './MyReportsPage.css'
 
 const TITLE: Record<string, string> = { EMPLOYMENT: '근로계약서' }
+
+const titleOf = (r: ReportListItem) => TITLE[r.contract.contract_type] ?? '계약서'
+
+/** 개발 서버에서만 실제 목록 아래에 예시 리포트를 함께 보여줍니다. */
+const SHOW_SAMPLES = import.meta.env.DEV
+
+type ListState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; reports: ReportListItem[] }
+
+/**
+ * 내 계약서 목록을 불러옵니다.
+ * 목록 응답에는 점검 결과가 없어, 카드의 개수 태그를 위해 각 계약서의 상세를 함께 불러옵니다.
+ * TODO: 백엔드 목록 응답에 결과 요약(counts)이 생기면 상세 조회를 없앱니다.
+ */
+async function loadReports(onPartial: (reports: ReportListItem[]) => void): Promise<ReportListItem[]> {
+  const { contracts } = await listContracts()
+  const sorted = [...contracts].sort((a, b) => b.created_at.localeCompare(a.created_at))
+  onPartial(sorted.map((c) => toListItem(c)))
+  const details = await Promise.allSettled(sorted.map((c) => getContract(c.id)))
+  return sorted.map((c, i) => {
+    const d = details[i]
+    return d.status === 'fulfilled'
+      ? toListItem(c, d.value.current_result)
+      : { ...toListItem(c), result: 'unknown' as const }
+  })
+}
+
+function deleteErrorMessage(err: unknown) {
+  if (err instanceof ApiError) {
+    if (err.code === 'RATE_LIMITED') return '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.'
+    if (err.status === 401) return '로그인이 만료됐어요. 다시 로그인한 뒤 시도해 주세요.'
+  }
+  return '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.'
+}
 
 /** 비로그인 상태 */
 function LoginRequired() {
@@ -38,9 +76,9 @@ function NoReports() {
   )
 }
 
-function ReportCard({ report }: { report: ReportListItem }) {
+function ReportCard({ report, onDelete }: { report: ReportListItem; onDelete: () => void }) {
   const { contract, counts } = report
-  const title = TITLE[contract.contract_type] ?? '계약서'
+  const title = titleOf(report)
   const toCheck = counts ? counts.LEGAL_RISK + counts.DISADVANTAGE + counts.MISSING : 0
   return (
     <article className="rcard">
@@ -50,12 +88,15 @@ function ReportCard({ report }: { report: ReportListItem }) {
       <div className="rcard__info">
         <h3>{title}</h3>
         <div className="rcard__meta">
-          {report.checkedAt
+          {report.result === 'ready' && report.checkedAt
             ? `${formatDateTime(report.checkedAt)} 점검 · 항목 ${report.itemCount}개 검토`
-            : `${formatDateTime(contract.created_at)} 저장 · 분석 전`}
+            : `${formatDateTime(contract.created_at)} 저장${report.result === 'none' ? ' · 분석 전' : ''}`}
         </div>
         <div className="pills">
           {/* 리포트 화면 상단과 같은 기준 */}
+          {report.result === 'loading' && <span className="pill pill--gray">결과 불러오는 중</span>}
+          {report.result === 'none' && <span className="pill pill--gray">분석 전</span>}
+          {report.result === 'unknown' && <span className="pill pill--gray">결과를 불러오지 못했어요</span>}
           {counts && toCheck === 0 && <span className="pill pill--green">확인할 사항 없음</span>}
           {counts && toCheck > 0 && (
             <>
@@ -70,7 +111,7 @@ function ReportCard({ report }: { report: ReportListItem }) {
         <Link to={`/reports/${contract.id}`} className="btn btn-primary btn-sm">
           리포트 보기
         </Link>
-        <button type="button" className="btn btn-ghost btn-sm" aria-label={`${title} 삭제`}>
+        <button type="button" className="btn btn-ghost btn-sm" aria-label={`${title} 삭제`} onClick={onDelete}>
           삭제
         </button>
       </div>
@@ -80,6 +121,59 @@ function ReportCard({ report }: { report: ReportListItem }) {
 
 function MyReportsPage() {
   const { user, loading } = useAuth()
+  const [list, setList] = useState<ListState>({ status: 'loading' })
+  const [samples, setSamples] = useState<ReportListItem[]>(SHOW_SAMPLES ? SAMPLE_REPORTS : [])
+  const [reloadKey, setReloadKey] = useState(0)
+  const [target, setTarget] = useState<ReportListItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const closeDialog = () => {
+    setTarget(null)
+    setDeleteError(null)
+  }
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    loadReports((partial) => !cancelled && setList({ status: 'ready', reports: partial }))
+      .then((reports) => !cancelled && setList({ status: 'ready', reports }))
+      .catch(() => !cancelled && setList({ status: 'error' }))
+    return () => {
+      cancelled = true
+    }
+  }, [user, reloadKey])
+
+  const retry = () => {
+    setList({ status: 'loading' })
+    setReloadKey((k) => k + 1)
+  }
+
+  const removeFromList = (id: string) => {
+    setSamples((l) => l.filter((r) => r.contract.id !== id))
+    setList((st) => (st.status === 'ready' ? { ...st, reports: st.reports.filter((r) => r.contract.id !== id) } : st))
+  }
+
+  const confirmDelete = async () => {
+    if (!target) return
+    const id = target.contract.id
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      // 예시 리포트는 서버에 없으므로 API를 부르지 않고 목록에서만 지웁니다.
+      if (!isSampleId(id)) await deleteContract(id)
+    } catch (err) {
+      // 이미 지워진 기록(404)은 삭제된 것으로 봅니다.
+      if (!(err instanceof ApiError && err.status === 404)) {
+        setDeleteError(deleteErrorMessage(err))
+        setDeleting(false)
+        return
+      }
+    }
+    removeFromList(id)
+    setDeleting(false)
+    closeDialog()
+  }
 
   if (loading) return null
 
@@ -95,36 +189,75 @@ function MyReportsPage() {
     )
   }
 
-  // TODO: API 연결 시 목록(GET /api/contracts)으로 대체
-  const reports = SAMPLE_REPORTS
+  const reports = list.status === 'ready' ? list.reports : []
   const withRisk = reports.filter((r) => r.counts && r.counts.LEGAL_RISK > 0).length
+  const renderCard = (report: ReportListItem) => (
+    <ReportCard key={report.contract.id} report={report} onDelete={() => setTarget(report)} />
+  )
 
   return (
     <section className="wrap">
       <div className="page-head">
         <h1>내 리포트</h1>
-        <p className="page-head__sub">점검한 계약서 {reports.length}건</p>
+        <p className="page-head__sub">
+          {list.status === 'ready' ? `점검한 계약서 ${reports.length}건` : '점검한 계약서를 불러오고 있어요'}
+        </p>
       </div>
 
-      <div className="stats">
-        <div className="stat">
-          <span>점검한 계약서</span>
-          <b>{reports.length}건</b>
-        </div>
-        <div className="stat">
-          <span>위험 조항이 있는 계약서</span>
-          <b className="stat__value--red">{withRisk}건</b>
-        </div>
-      </div>
+      {list.status === 'loading' && <p className="list-note">불러오는 중…</p>}
 
-      {reports.length === 0 ? (
-        <NoReports />
-      ) : (
-        <div className="rlist">
-          {reports.map((report) => (
-            <ReportCard key={report.contract.id} report={report} />
-          ))}
+      {list.status === 'error' && (
+        <div className="empty">
+          <h2>리포트를 불러오지 못했어요</h2>
+          <p className="empty__sub">잠시 후 다시 시도해 주세요.</p>
+          <button type="button" className="btn btn-primary btn-sm empty__action" onClick={retry}>
+            다시 시도
+          </button>
         </div>
+      )}
+
+      {list.status === 'ready' && (
+        <>
+          <div className="stats">
+            <div className="stat">
+              <span>점검한 계약서</span>
+              <b>{reports.length}건</b>
+            </div>
+            <div className="stat">
+              <span>위험 조항이 있는 계약서</span>
+              <b className="stat__value--red">{withRisk}건</b>
+            </div>
+          </div>
+          {reports.length === 0 ? <NoReports /> : <div className="rlist">{reports.map(renderCard)}</div>}
+        </>
+      )}
+
+      {samples.length > 0 && (
+        <>
+          <div className="sample-head">
+            <h2>예시 리포트</h2>
+            <p>개발 서버에서만 보이는 화면 확인용 예시예요. 실제 점검 결과가 아니에요.</p>
+          </div>
+          <div className="rlist">{samples.map(renderCard)}</div>
+        </>
+      )}
+
+      {target && (
+        <ConfirmDialog
+          title="리포트를 삭제할까요?"
+          confirmLabel="삭제"
+          pendingLabel="삭제하는 중…"
+          pending={deleting}
+          error={deleteError}
+          danger
+          onConfirm={confirmDelete}
+          onCancel={closeDialog}
+        >
+          <p>
+            {titleOf(target)} 원문과 점검 결과가 <strong>영구 삭제</strong>돼요.
+          </p>
+          <p>삭제하면 되돌릴 수 없어요.</p>
+        </ConfirmDialog>
       )}
     </section>
   )

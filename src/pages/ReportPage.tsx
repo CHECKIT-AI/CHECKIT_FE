@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
+import { ApiError } from '../api/client'
+import { getContract } from '../api/contracts'
 import { useAuth } from '../auth/useAuth'
 import { BookIcon, ChatIcon } from '../components/icons'
 import { SAMPLE_CONTRACTS } from '../mocks/analysis'
@@ -22,7 +24,7 @@ import {
   type GroupKey,
   type Tone,
 } from '../report/view'
-import type { CheckItem, TextRevision } from '../types/api'
+import type { CheckItem, ContractDetailResponse, TextRevision } from '../types/api'
 import './ReportPage.css'
 
 type Range = { start: number; end: number }
@@ -235,20 +237,50 @@ function ReportMessage({ title, sub }: { title: string; sub: string }) {
   )
 }
 
+type DetailState =
+  | { status: 'loading' }
+  | { status: 'notFound' }
+  | { status: 'error' }
+  | { status: 'ready'; detail: ContractDetailResponse }
+
 function ReportView({ reportId }: { reportId: string }) {
   const { user, loading } = useAuth()
-  // TODO: 리포트 상세 연동 시 GET /api/contracts/{reportId} 응답으로 대체
-  const detail = SAMPLE_CONTRACTS[reportId] ?? null
-  const items = detail?.current_result?.items ?? []
-  const [selectedId, setSelectedId] = useState<string | null>(
-    // 왼쪽 목록 순서대로 첫 항목을 선택합니다.
-    () => GROUPS.flatMap((g) => items.filter((i) => groupOf(i) === g.key))[0]?.id ?? null,
-  )
+  // 예시 리포트(sample-*)는 프론트 예시 데이터, 그 외에는 GET /api/contracts/{reportId}
+  const sample = SAMPLE_CONTRACTS[reportId]
+  const [fetched, setFetched] = useState<DetailState>({ status: 'loading' })
+  const state: DetailState = sample ? { status: 'ready', detail: sample } : fetched
+  const [pickedId, setPickedId] = useState<string | null>(null)
   const [showPresent, setShowPresent] = useState(false)
+
+  useEffect(() => {
+    if (sample || !user) return
+    let cancelled = false
+    getContract(reportId)
+      .then((detail) => !cancelled && setFetched({ status: 'ready', detail }))
+      .catch((err) => {
+        if (cancelled) return
+        // 남의 계약서·없는 계약서·잘못된 ID는 모두 '찾을 수 없음'으로 보여줍니다.
+        const notFound = err instanceof ApiError && (err.status === 404 || err.status === 422)
+        setFetched({ status: notFound ? 'notFound' : 'error' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reportId, sample, user])
+
+  const detail = state.status === 'ready' ? state.detail : null
+  const items = detail?.current_result?.items ?? []
+  // 직접 고른 항목이 없으면 왼쪽 목록 순서대로 첫 항목을 선택합니다.
+  const selectedId = pickedId ?? GROUPS.flatMap((g) => items.filter((i) => groupOf(i) === g.key))[0]?.id ?? null
+  const setSelectedId = setPickedId
 
   if (loading) return null
   if (!user) return <Navigate to="/login" replace state={{ reason: 'reports', returnTo: `/reports/${reportId}` }} />
-  if (!detail) return <ReportMessage title="리포트를 찾을 수 없어요" sub="삭제되었거나 다른 계정의 리포트일 수 있어요." />
+  if (state.status === 'loading') return <ReportMessage title="리포트를 불러오는 중이에요" sub="잠시만 기다려 주세요." />
+  if (state.status === 'error')
+    return <ReportMessage title="리포트를 불러오지 못했어요" sub="잠시 후 다시 시도해 주세요." />
+  if (state.status === 'notFound' || !detail)
+    return <ReportMessage title="리포트를 찾을 수 없어요" sub="삭제되었거나 다른 계정의 리포트일 수 있어요." />
 
   const result = detail.current_result
   if (!result) return <ReportMessage title="아직 점검 결과가 없어요" sub="분석이 끝나면 이곳에서 결과를 볼 수 있어요." />
