@@ -7,7 +7,6 @@ import {
   CATEGORY_LABEL,
   GROUPS,
   LONG_QUOTE,
-  STATUS_META,
   categoryOf,
   citationsFor,
   explanationOf,
@@ -16,7 +15,9 @@ import {
   groupCounts,
   groupOf,
   isDiscovered,
+  isWritten,
   pageRanges,
+  statusMetaOf,
   titleOf,
   type GroupKey,
   type Tone,
@@ -122,12 +123,12 @@ function ContractText({ text, quote, tone }: { text: TextRevision; quote: string
 }
 
 function ItemButton({ item, selected, onSelect }: { item: CheckItem; selected: boolean; onSelect: () => void }) {
-  const st = STATUS_META[item.status]
+  const st = statusMetaOf(item)
   return (
     <button type="button" role="listitem" className="item" aria-current={selected} onClick={onSelect}>
       <span className={`item__dot dot-${st.tone}`} />
       <span className="item__body">
-        <span className={`item__title ${item.status === 'PRESENT' ? 'is-ok' : ''}`}>{titleOf(item)}</span>
+        <span className={`item__title ${isWritten(item) ? 'is-ok' : ''}`}>{titleOf(item)}</span>
         {isDiscovered(item) && <span className="item__sub">AI가 추가로 찾은 항목</span>}
         {!isDiscovered(item) && explanationOf(item).held && <span className="item__sub">판단 보류</span>}
       </span>
@@ -154,9 +155,11 @@ function Quote({ text, page }: { text: string; page?: number }) {
 }
 
 function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnType<typeof citationsFor> }) {
-  const st = STATUS_META[item.status]
+  const st = statusMetaOf(item)
   const category = categoryOf(item)
   const page = item.source_locations[0]?.page
+  const written = isWritten(item)
+  // 적혀 있는 항목은 '내용이 충분한지', 나머지는 '서명 전에' 확인할 정보로 안내합니다.
   const ask = item.status === 'PRESENT' ? [] : item.required_information
   const explanation = explanationOf(item)
 
@@ -176,7 +179,7 @@ function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnTyp
 
       {item.quoted_text ? (
         <Quote text={item.quoted_text} page={page} />
-      ) : category === 'MISSING' && item.status !== 'PRESENT' ? (
+      ) : category === 'MISSING' && !written ? (
         <div className="notfound">계약서에서 관련 문장을 찾지 못했어요. 사장님께 직접 확인해 보세요.</div>
       ) : null}
 
@@ -209,7 +212,9 @@ function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnTyp
       {ask.length > 0 && (
         <div className="ask">
           <ChatIcon size={18} className="ask__icon" />
-          <span>서명 전에 확인해 보세요: {ask.join(', ')}</span>
+          <span>
+            {written ? '내용이 충분한지 확인해 보세요' : '서명 전에 확인해 보세요'}: {ask.join(', ')}
+          </span>
         </div>
       )}
     </>
@@ -329,7 +334,7 @@ function ReportView({ reportId }: { reportId: string }) {
             <ContractText
               text={detail.text}
               quote={selected?.quoted_text ?? null}
-              tone={selected ? STATUS_META[selected.status].tone : 'gray'}
+              tone={selected ? statusMetaOf(selected).tone : 'gray'}
             />
           ) : (
             <div className="doc__body">저장된 원문이 없어요.</div>

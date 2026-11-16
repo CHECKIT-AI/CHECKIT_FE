@@ -12,7 +12,7 @@ export const GROUPS: { key: GroupKey; label: string; tone: Tone; empty: string }
   { key: 'LEGAL_RISK', label: '위험 조항', tone: 'red', empty: '발견된 위험 조항이 없어요.' },
   { key: 'DISADVANTAGE', label: '불리한 조건', tone: 'blue', empty: '발견된 불리한 조건이 없어요.' },
   { key: 'MISSING', label: '필수 기재사항 확인', tone: 'amber', empty: '확인할 필수 기재사항이 없어요.' },
-  { key: 'PRESENT', label: '확인된 항목', tone: 'green', empty: '' },
+  { key: 'PRESENT', label: '계약서에 적혀 있음', tone: 'green', empty: '' },
 ]
 
 export const CATEGORY_LABEL: Record<CheckCategory, string> = {
@@ -58,8 +58,23 @@ export function isDiscovered(item: CheckItem) {
   return item.rule_candidate?.source === 'GEMINI' || item.check_code.startsWith('DISCOVERED_')
 }
 
+/**
+ * 필수 기재사항이 계약서에 적혀 있는지.
+ * 백엔드(2026-11-14 e21057d)는 문구를 찾아도 내용이 충분한지는 단정하지 않아
+ * status를 NEEDS_CONFIRMATION, document_presence를 PRESENT로 보냅니다. 예전 결과는 status가 PRESENT입니다.
+ */
+export function isWritten(item: CheckItem) {
+  if (item.status === 'PRESENT') return true
+  return categoryOf(item) === 'MISSING' && item.document_presence === 'PRESENT' && item.status === 'NEEDS_CONFIRMATION'
+}
+
 export function groupOf(item: CheckItem): GroupKey {
-  return item.status === 'PRESENT' ? 'PRESENT' : categoryOf(item)
+  return isWritten(item) ? 'PRESENT' : categoryOf(item)
+}
+
+/** 화면에 표시할 상태 태그. 적혀 있는 필수 기재사항은 '확인 필요' 대신 '적혀 있음'으로 보여줍니다. */
+export function statusMetaOf(item: CheckItem): { label: string; tone: Tone } {
+  return isWritten(item) ? { label: '적혀 있음', tone: 'green' } : STATUS_META[item.status]
 }
 
 export function titleOf(item: CheckItem) {

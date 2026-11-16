@@ -81,8 +81,36 @@ type Spec = {
 
 type Built = { item: CheckItem; laws: Law[] }
 
+/** 필수 기재사항 이름(백엔드 rule_candidate.required_information과 같은 값) */
+const REQUIRED_NAME: Record<string, string> = {
+  MISSING_WAGE_COMPONENTS: '임금 구성 항목',
+  MISSING_WAGE_CALCULATION: '임금 계산 방법',
+  MISSING_WAGE_PAYMENT: '임금 지급 방법',
+  MISSING_SCHEDULED_HOURS: '소정근로시간',
+  MISSING_HOLIDAY: '휴일',
+  MISSING_ANNUAL_LEAVE: '연차 유급휴가',
+  MISSING_WORKPLACE: '근무 장소',
+  MISSING_DUTIES: '종사할 업무',
+}
+
+/**
+ * 백엔드(2026-11-14 e21057d)는 필수 기재사항 문구를 찾아도 PRESENT로 확정하지 않고
+ * NEEDS_CONFIRMATION + document_presence PRESENT + 이 설명으로 저장합니다. 예시도 같게 맞춥니다.
+ */
+function asBackendWritten(s: Spec): Spec {
+  if (s.category !== 'MISSING' || s.status !== 'PRESENT') return s
+  const name = REQUIRED_NAME[s.code] ?? s.labels[0]
+  return {
+    ...s,
+    status: 'NEEDS_CONFIRMATION',
+    presence: 'PRESENT',
+    explanation: `계약서에서 ${name} 관련 문구를 확인했지만 내용의 충분성은 확인이 필요합니다.`,
+    info: s.info ?? [name],
+  }
+}
+
 function makeItems(revision: string, specs: Spec[]): Built[] {
-  return specs.map((s, i) => {
+  return specs.map(asBackendWritten).map((s, i) => {
     const loc = s.clause ? [{ page: 1, clause_id: `${revision}:${s.clause}` }] : []
     return {
       laws: s.laws ?? [],
@@ -193,7 +221,7 @@ const S1 = contract({
   createdAt: '2026-11-12T07:48:10Z',
   completedAt: '2026-11-12T07:50:28.024339Z',
   content: S1_TEXT,
-  summary: '8개 조항, 13개 항목 검토: CAUTION 5건, MISSING_SUSPECTED 1건, NEEDS_CONFIRMATION 1건, PRESENT 6건',
+  summary: '8개 조항, 13개 항목 검토: CAUTION 5건, MISSING_SUSPECTED 1건, NEEDS_CONFIRMATION 7건, PRESENT 0건',
   built: makeItems(S1_REV, [
     {
       id: 'a1e0c3b2-0001-4c1a-9a01-000000000001', code: 'PRESET_PENALTY', category: 'LEGAL_RISK', labels: ['손해배상·위약금'],
@@ -304,7 +332,7 @@ const S2 = contract({
   createdAt: '2026-11-12T08:57:40Z',
   completedAt: '2026-11-12T08:59:54.473187Z',
   content: S2_TEXT,
-  summary: '9개 조항, 10개 항목 검토: CAUTION 1건, MISSING_SUSPECTED 0건, NEEDS_CONFIRMATION 1건, PRESENT 8건',
+  summary: '9개 조항, 10개 항목 검토: CAUTION 1건, MISSING_SUSPECTED 0건, NEEDS_CONFIRMATION 9건, PRESENT 0건',
   built: makeItems(S2_REV, [
     {
       id: 'b2f1d4c3-0001-4d2b-8b02-000000000001', code: 'BROAD_LIABILITY', category: 'DISADVANTAGE', labels: ['손해배상·위약금'],
