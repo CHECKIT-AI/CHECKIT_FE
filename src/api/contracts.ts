@@ -1,6 +1,11 @@
 // 계약서 API
-import type { ContractDetailResponse, ContractListResponse } from '../types/api'
-import { api } from './client'
+import type {
+  ContractDetailResponse,
+  ContractListResponse,
+  CreateContractRequest,
+  CreateContractResponse,
+} from '../types/api'
+import { api, ApiError } from './client'
 
 /** 내 계약서 목록 — GET /api/contracts (최신순은 화면에서 정렬) */
 export function listContracts({ limit = 100, offset = 0 } = {}) {
@@ -19,4 +24,35 @@ export function getContract(contractId: string) {
  */
 export function deleteContract(contractId: string) {
   return api<void>(`/api/contracts/${encodeURIComponent(contractId)}`, { method: 'DELETE' })
+}
+
+/**
+ * 확인·개인정보 가리기를 마친 텍스트 저장 — POST /api/contracts
+ * 공용 DB에 계약서 기록이 생깁니다. 원본 파일은 보내지 않습니다.
+ */
+export function createContract(body: CreateContractRequest) {
+  return api<CreateContractResponse>('/api/contracts', { method: 'POST', body })
+}
+
+/** 저장 실패를 사용자에게 보여줄 문구로 바꿉니다. 줄바꿈(\n)으로 한 줄씩 보여줍니다. */
+export function saveErrorMessage(e: unknown): string {
+  if (!(e instanceof ApiError)) return '저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해 주세요.'
+  switch (e.code) {
+    case 'PERSONAL_DATA_DETECTED':
+      return '주민등록번호·휴대전화 번호·이메일로 보이는 글자가 남아 있어요.\n미리보기에서 찾아 드래그해서 가려 주세요.'
+    case 'ANALYSIS_INPUT_LIMIT':
+      return '계약서가 너무 길거나 조항이 너무 많아요.\n글자 확인 단계로 돌아가 점검에 필요 없는 부분을 지워 주세요.'
+    case 'INVALID_INPUT':
+      return '보낼 내용의 형식이 올바르지 않아요.\n글자 확인 단계로 돌아가 빈 페이지가 없는지 확인해 주세요.'
+    case 'REQUEST_TOO_LARGE':
+      return '계약서 내용이 너무 커요.\n점검에 필요 없는 부분을 지우고 다시 시도해 주세요.'
+    case 'RATE_LIMITED':
+      return '저장 요청이 너무 잦아요.\n1분쯤 뒤에 다시 시도해 주세요.'
+    case 'AUTHENTICATION_REQUIRED':
+      return '로그인이 풀렸어요.\n다시 로그인한 뒤 저장해 주세요.'
+    case 'CSRF_FAILED':
+      return '보안 확인에 실패했어요.\n잠시 후 다시 시도해 주세요.'
+  }
+  if (e.status === 503 || e.retryable) return '서버가 잠시 응답하지 않아요.\n잠시 후 다시 시도해 주세요.'
+  return '저장하지 못했어요.\n잠시 후 다시 시도해 주세요.'
 }

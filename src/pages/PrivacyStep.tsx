@@ -20,10 +20,12 @@ type Props = {
   masks: Mask[]
   onMasksChange: (masks: Mask[]) => void
   onBack: () => void
-  /** 가림을 적용한 텍스트와 동의를 마친 뒤 */
+  /** 가림을 적용한 텍스트와 동의를 마친 뒤 (저장) */
   onDone: (masked: PageText[]) => void
-  /** 다음 단계에서 알려줄 문구 */
-  status?: string | null
+  /** 저장 중이면 버튼을 막습니다. */
+  saving?: boolean
+  /** 저장 실패 문구 (줄바꿈으로 한 줄씩) */
+  saveError?: string | null
 }
 
 /** 사용자가 고른 범위 (가리기 버튼 위치 포함) */
@@ -44,7 +46,7 @@ type CheckKey = (typeof CHECKLIST)[number]['key']
 const NO_CHECKS: Record<CheckKey, boolean> = { name: false, contact: false, id: false, address: false, account: false }
 const checkKeyOf = (kind: MaskKind) => CHECKLIST.find((c) => (c.kinds as readonly MaskKind[]).includes(kind))?.key
 
-function PrivacyStep({ pages, masks, onMasksChange, onBack, onDone, status }: Props) {
+function PrivacyStep({ pages, masks, onMasksChange, onBack, onDone, saving = false, saveError }: Props) {
   const [checks, setChecks] = useState<Record<CheckKey, boolean>>(NO_CHECKS)
   const [checkedGemini, setCheckedGemini] = useState(false)
   const [picked, setPicked] = useState<Picked | null>(null)
@@ -182,6 +184,7 @@ function PrivacyStep({ pages, masks, onMasksChange, onBack, onDone, status }: Pr
       setError('아래 목록을 하나씩 확인하고 체크해 주세요.')
       return
     }
+    if (saving) return
     onDone(masked)
   }
 
@@ -338,29 +341,34 @@ function PrivacyStep({ pages, masks, onMasksChange, onBack, onDone, status }: Pr
               <pre>{masked.map((p) => p.text).join('\n\n')}</pre>
             </details>
 
-            {status && !error && (
-              <p className="pv-notice" role="status">
-                {status}
-              </p>
-            )}
-            {notice && !error && !status && (
+            {notice && !error && !saveError && (
               <p className="pv-notice" role="status">
                 {notice}
               </p>
             )}
-            {error && (
+            {(error || saveError) && (
               <p className="pv-error" role="alert">
-                {error}
+                {error ?? saveError}
               </p>
             )}
             <button
               type="button"
               className="btn btn-primary pv-submit"
               onClick={submit}
-              disabled={!checkedPrivacy || !checkedGemini}
+              disabled={!checkedPrivacy || !checkedGemini || saving}
+              aria-busy={saving}
             >
-              {checkedPrivacy && checkedGemini && <CheckIcon size={16} />} 다음: 저장하고 점검 준비
+              {saving ? (
+                '저장하는 중…'
+              ) : (
+                <>
+                  {checkedPrivacy && checkedGemini && <CheckIcon size={16} />} 다음: 저장하고 점검 준비
+                </>
+              )}
             </button>
+            <p className="pv-help pv-help--small pv-save-note">
+              저장하면 가린 텍스트만 내 계정에 저장돼요. 내 리포트에서 언제든 삭제할 수 있어요.
+            </p>
           </div>
         </aside>
       </div>

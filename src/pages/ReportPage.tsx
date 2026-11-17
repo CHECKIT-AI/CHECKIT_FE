@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router'
+import { Link, Navigate, useLocation, useParams } from 'react-router'
 import { ApiError } from '../api/client'
 import { getContract } from '../api/contracts'
 import { useAuth } from '../auth/useAuth'
@@ -253,6 +253,8 @@ type DetailState =
 
 function ReportView({ reportId }: { reportId: string }) {
   const { user, loading } = useAuth()
+  // 계약서를 막 저장하고 들어온 경우 (ReviewPage가 state로 알려줌)
+  const justSaved = (useLocation().state as { saved?: boolean } | null)?.saved === true
   // 예시 리포트(sample-*)는 프론트 예시 데이터, 그 외에는 GET /api/contracts/{reportId}
   const sample = SAMPLE_CONTRACTS[reportId]
   const [fetched, setFetched] = useState<DetailState>({ status: 'loading' })
@@ -291,7 +293,13 @@ function ReportView({ reportId }: { reportId: string }) {
     return <ReportMessage title="리포트를 찾을 수 없어요" sub="삭제되었거나 다른 계정의 리포트일 수 있어요." />
 
   const result = detail.current_result
-  if (!result) return <ReportMessage title="아직 점검 결과가 없어요" sub="분석이 끝나면 이곳에서 결과를 볼 수 있어요." />
+  if (!result) {
+    return justSaved ? (
+      <ReportMessage title="계약서를 저장했어요" sub="분석을 시작하면 이곳에서 점검 결과를 볼 수 있어요. 분석 시작은 다음 작업에서 연결돼요." />
+    ) : (
+      <ReportMessage title="아직 점검 결과가 없어요" sub="분석이 끝나면 이곳에서 결과를 볼 수 있어요." />
+    )
+  }
 
   const selected = items.find((i) => i.id === selectedId) ?? null
   const counts = groupCounts(items)

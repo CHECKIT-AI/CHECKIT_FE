@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
-import { Link, Navigate } from 'react-router'
+import { Link, Navigate, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CheckIcon } from '../components/icons'
-import { getPendingUpload, setConfirmedText } from '../upload/draft'
+import { createContract, saveErrorMessage } from '../api/contracts'
+import { clearPendingUpload, getPendingUpload } from '../upload/draft'
 import { OcrError } from '../upload/errors'
 import {
   extractPages,
@@ -109,7 +110,9 @@ function Review({ selection }: { selection: UploadSelection }) {
   const [step, setStep] = useState<'review' | 'privacy'>('review')
   /** 개인정보 가림. 글자를 고치지 않았으면 돌아왔다 가도 그대로 둡니다. */
   const [privacy, setPrivacy] = useState<{ key: string; pages: PageText[]; masks: Mask[] } | null>(null)
-  const [privacyStatus, setPrivacyStatus] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const navigate = useNavigate()
   const inputs = useRef(new Map<number, HTMLTextAreaElement>())
   /** 줄을 나누거나 합친 뒤 커서를 옮길 위치 */
   const pendingFocus = useRef<{ id: number; at: number } | null>(null)
@@ -231,6 +234,25 @@ function Review({ selection }: { selection: UploadSelection }) {
     )
   }
 
+  // 개인정보를 가린 텍스트를 저장하고 리포트 화면으로 이동합니다. (POST /api/contracts → 공용 DB에 기록)
+  const save = async (masked: PageText[]) => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const { contract_id } = await createContract({
+        input_kind: selection.kind,
+        pages: masked,
+        privacy_confirmed: true,
+        gemini_notice_acknowledged: true,
+      })
+      clearPendingUpload()
+      navigate(`/reports/${contract_id}`, { replace: true, state: { saved: true } })
+    } catch (e) {
+      setSaveError(saveErrorMessage(e))
+      setSaving(false)
+    }
+  }
+
   if (step === 'privacy' && privacy) {
     return (
       <PrivacyStep
@@ -238,19 +260,16 @@ function Review({ selection }: { selection: UploadSelection }) {
         masks={privacy.masks}
         onMasksChange={(masks) => {
           setPrivacy({ ...privacy, masks })
-          setPrivacyStatus(null)
+          setSaveError(null)
         }}
         onBack={() => {
           setStep('review')
-          setPrivacyStatus(null)
+          setSaveError(null)
           window.scrollTo({ top: 0 })
         }}
-        onDone={(masked) => {
-          setConfirmedText({ kind: selection.kind, pages: masked })
-          // TODO(다음 작업): POST /api/contracts 로 저장하고 분석 준비 화면으로 이동
-          setPrivacyStatus('개인정보를 가렸어요. 저장은 다음 작업에서 연결돼요.')
-        }}
-        status={privacyStatus}
+        onDone={(masked) => void save(masked)}
+        saving={saving}
+        saveError={saveError}
       />
     )
   }
