@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // PaddleOCR Worker가 모듈(import)을 쓰므로 ES 모듈 형식으로 빌드합니다.
+    worker: { format: 'es' },
     server: {
       port: 5173,
       strictPort: true,

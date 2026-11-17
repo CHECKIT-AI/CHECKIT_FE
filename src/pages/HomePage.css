@@ -122,28 +122,18 @@
   color: var(--muted);
 }
 
-.contract-text {
-  width: 100%;
-  min-height: 200px;
-  resize: vertical;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
-  font-family: inherit;
+.drop--over {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.upload-error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--red-bg);
+  color: var(--red);
   font-size: 14px;
-  line-height: 1.6;
-  color: var(--ink);
-  background: var(--paper);
-}
-
-.upload-card__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.upload-card__start {
-  flex: 1 1 200px;
 }
 
 .privacy {

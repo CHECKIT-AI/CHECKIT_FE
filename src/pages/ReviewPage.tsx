@@ -1,341 +1,545 @@
-import { useMemo, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
+import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
-import { DocLinesIcon } from '../components/icons'
-import { SAMPLE_EXTRACTION } from '../mocks/extraction'
-import type { ExtractionResult, ReviewCandidate } from '../types/extraction'
+import { CheckIcon } from '../components/icons'
+import { getPendingUpload } from '../upload/draft'
+import {
+  extractPages,
+  MAX_PAGE_CHARS,
+  OcrCancelled,
+  revokePreviews,
+  type Box,
+  type ExtractedPage,
+  type OcrProgress,
+  type UploadSelection,
+} from '../upload/ocr'
 import './ReviewPage.css'
 
-// 인식 신뢰도 기준 (목업 기준값. 백엔드·AI 담당자와 확정 필요)
-const CONF_OK = 0.85
-const CONF_FAIL = 0.5
-
-type LineStatus = 'ok' | 'low' | 'fail'
-
 type Line = {
-  blockId: string
+  /** 화면 key용. 줄을 나누거나 합쳐도 바뀌지 않습니다. */
+  id: number
   text: string
-  confidence: number | null
-  /** 최초 인식 상태. 사용자가 확인해도 바뀌지 않음 */
-  status: LineStatus
-  /** 확인이 필요한 줄을 사용자가 확인·수정했는지 */
-  done: boolean
-  edited: boolean
-  candidates: ReviewCandidate[]
+  /** 처음에 흐리게 읽혀 확인이 필요했던 줄 */
+  low: boolean
+  /** 흐린 줄을 사용자가 고치거나 '맞아요'로 확인했는지 */
+  checked: boolean
+  box: Box | null
 }
 
-const UNREADABLE = /▒/
-const DIGIT_O = /[0-9,][Oo]|[Oo][0-9]/
-
-function lineStatus(conf: number | null): LineStatus {
-  if (conf === null) return 'ok' // PDF 내장 텍스트
-  if (conf >= CONF_OK) return 'ok'
-  return conf >= CONF_FAIL ? 'low' : 'fail'
+type PageDraft = Omit<ExtractedPage, 'lines'> & {
+  lines: Line[]
+  /** 사용자가 원본과 비교해 확인했는지. 고치면 다시 확인해야 합니다. */
+  confirmed: boolean
 }
 
-/** 숫자와 붙어 있는 영문 O가 포함된 토큰(예: 1O,5OO원)을 찾습니다. */
-function digitOTokens(text: string) {
-  return (text.match(/[0-9Oo,.:~]*[0-9][0-9Oo,.:~]*/g) ?? []).filter((t) => DIGIT_O.test(t))
+type Phase =
+  | { kind: 'reading'; progress: OcrProgress | null }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready' }
+
+const ZOOMS = [100, 150, 200, 300]
+
+let nextLineId = 1
+const newLine = (text: string, from?: Partial<Line>): Line => ({
+  id: nextLineId++,
+  text,
+  low: false,
+  checked: false,
+  box: null,
+  ...from,
+})
+
+function toDraft(p: ExtractedPage): PageDraft {
+  const lines = p.lines.map((l) => newLine(l.text, { low: l.low, box: l.box }))
+  // 글자를 하나도 못 읽은 페이지는 직접 입력할 빈 줄을 하나 둡니다.
+  return { ...p, lines: lines.length ? lines : [newLine('')], confirmed: false }
 }
 
-/** 토큰 안의 영문 O를 강조해서 보여줍니다. 글꼴에 따라 O와 0이 비슷해 보이기 때문입니다. */
-function SuspectToken({ token }: { token: string }) {
-  return (
-    <span className="suspects__token">
-      {[...token].map((ch, i) =>
-        ch === 'O' || ch === 'o' ? (
-          <mark key={i} className="suspects__letter" title="영문 O">
-            {ch}
-          </mark>
-        ) : (
-          ch
-        ),
-      )}
-    </span>
-  )
+/** 저장할 페이지 텍스트. 빈 줄은 빼고 줄바꿈으로 이어 붙입니다. */
+function pageText(p: { lines: { text: string }[] }) {
+  return p.lines
+    .map((l) => l.text.trim())
+    .filter(Boolean)
+    .join('\n')
 }
 
-function toLines(result: ExtractionResult): Line[] {
-  return result.blocks.map((b) => ({
-    blockId: b.block_id,
-    text: b.text,
-    confidence: b.recognition_confidence,
-    status: lineStatus(b.recognition_confidence),
-    done: false,
-    edited: false,
-    candidates: result.review_candidates.filter((c) => c.block_id === b.block_id),
-  }))
-}
+const needsCheck = (l: Line) => l.low && !l.checked
 
-function hintFor(line: Line) {
-  if (line.status === 'fail') {
-    return UNREADABLE.test(line.text)
-      ? '글자를 읽지 못한 부분(▒)이 있어요. 원본을 보고 직접 입력해 주세요.'
-      : '인식 신뢰도가 매우 낮아요. 원본을 보고 직접 고쳐 주세요.'
-  }
-  return DIGIT_O.test(line.text)
-    ? '숫자 0이 영문 O로 읽혔을 수 있어요. 금액·날짜를 원본과 비교해 주세요.'
-    : '흐리게 찍혀 잘못 읽었을 수 있어요. 원본과 비교해 주세요.'
-}
-
-function rowClass(line: Line) {
-  if (line.status === 'ok') return 'ok'
-  return line.done ? 'done' : line.status
+function sourceLabel(p: PageDraft) {
+  if (p.source === 'PDF_TEXT') return { text: 'PDF 글자 그대로', tone: 'green' }
+  const conf = p.confidence ?? 0
+  return { text: `글자 인식 · 신뢰도 ${conf}%`, tone: conf >= 85 ? 'green' : conf >= 60 ? 'amber' : 'red' }
 }
 
 function ReviewPage() {
   const { user, loading } = useAuth()
-  const navigate = useNavigate()
-  // TODO: API 연결 시 업로드 응답(POST /api/contracts)으로 대체
-  const [lines, setLines] = useState<Line[]>(() => toLines(SAMPLE_EXTRACTION))
-  const [mode, setMode] = useState<'lines' | 'all'>('lines')
-  const [allText, setAllText] = useState('')
-  const [selected, setSelected] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-
-  const counts = useMemo(() => {
-    const flagged = lines.filter((l) => l.status !== 'ok')
-    return {
-      flagged: flagged.length,
-      done: flagged.filter((l) => l.done).length,
-    }
-  }, [lines])
+  const [selection] = useState(getPendingUpload)
 
   if (loading) return null
   if (!user) return <Navigate to="/login" replace state={{ reason: 'upload', returnTo: '/' }} />
+  if (!selection) {
+    return (
+      <section className="wrap review-empty">
+        <h1>올린 파일이 없어요</h1>
+        <p>새로고침하거나 다른 화면에 다녀오면 고른 파일이 사라져요. 계약서를 다시 올려 주세요.</p>
+        <Link to="/" className="btn btn-primary">
+          계약서 올리러 가기
+        </Link>
+      </section>
+    )
+  }
+  return <Review selection={selection} />
+}
 
-  const updateLine = (blockId: string, patch: (l: Line) => Partial<Line>) => {
-    setLines((prev) => prev.map((l) => (l.blockId === blockId ? { ...l, ...patch(l) } : l)))
+function Review({ selection }: { selection: UploadSelection }) {
+  const [attempt, setAttempt] = useState(0)
+  const [phase, setPhase] = useState<Phase>({ kind: 'reading', progress: null })
+  const [pages, setPages] = useState<PageDraft[]>([])
+  const [current, setCurrent] = useState(0)
+  const [activeId, setActiveId] = useState<number | null>(null)
+  const [zoom, setZoom] = useState(100)
+  const [message, setMessage] = useState<string | null>(null)
+  const inputs = useRef(new Map<number, HTMLTextAreaElement>())
+  /** 줄을 나누거나 합친 뒤 커서를 옮길 위치 */
+  const pendingFocus = useRef<{ id: number; at: number } | null>(null)
+
+  // 글자 읽기. 화면을 떠나거나 다시 읽으면 진행 중인 작업을 멈춥니다.
+  useEffect(() => {
+    const controller = new AbortController()
+    let result: ExtractedPage[] = []
+    extractPages(
+      selection,
+      (progress) => {
+        // 취소된 작업이 늦게 보내는 진행률은 무시합니다.
+        if (!controller.signal.aborted) setPhase({ kind: 'reading', progress })
+      },
+      controller.signal,
+    )
+      .then((r) => {
+        result = r
+        setPages(r.map(toDraft))
+        setCurrent(0)
+        setPhase({ kind: 'ready' })
+      })
+      .catch((e: unknown) => {
+        if (e instanceof OcrCancelled) return
+        setPhase({ kind: 'error', message: e instanceof Error ? e.message : '글자를 읽지 못했어요.' })
+      })
+    return () => {
+      controller.abort()
+      revokePreviews(result) // 미리보기 이미지 해제
+    }
+  }, [selection, attempt])
+
+  // 확인한 내용이 사라지지 않도록 새로고침·창 닫기 전에 물어봅니다.
+  const hasWork = phase.kind === 'ready'
+  useEffect(() => {
+    if (!hasWork) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasWork])
+
+  // 줄 입력칸 높이를 내용에 맞춥니다. 글꼴을 다 받거나 폭이 바뀌면 줄바꿈이 달라지므로 다시 맞춥니다.
+  const fitLines = () => {
+    for (const el of inputs.current.values()) {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }
+  }
+  const fitRef = useRef(fitLines)
+  useLayoutEffect(() => {
+    fitRef.current = fitLines
+  })
+  const listRef = useRef<HTMLOListElement>(null)
+  const ready = phase.kind === 'ready'
+  useEffect(() => {
+    const list = listRef.current
+    if (!ready || !list) return
+    const fit = () => fitRef.current()
+    const observer = new ResizeObserver(fit)
+    observer.observe(list)
+    document.fonts.addEventListener('loadingdone', fit)
+    void document.fonts.ready.then(fit)
+    return () => {
+      observer.disconnect()
+      document.fonts.removeEventListener('loadingdone', fit)
+    }
+  }, [ready])
+
+  // 내용이 바뀔 때마다 높이를 맞추고, 나누기·합치기 후 커서를 옮깁니다.
+  useLayoutEffect(() => {
+    fitLines()
+    const f = pendingFocus.current
+    if (f) {
+      const el = inputs.current.get(f.id)
+      el?.focus()
+      el?.setSelectionRange(f.at, f.at)
+      pendingFocus.current = null
+    }
+  })
+
+  if (phase.kind === 'reading') return <Reading progress={phase.progress} kind={selection.kind} />
+
+  if (phase.kind === 'error') {
+    return (
+      <section className="wrap review-empty">
+        <h1>계약서를 읽지 못했어요</h1>
+        <p>{phase.message}</p>
+        <div className="review-empty__actions">
+          <Link to="/" className="btn btn-ghost">
+            다른 파일 올리기
+          </Link>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setPhase({ kind: 'reading', progress: null })
+              setAttempt((n) => n + 1)
+            }}
+          >
+            다시 읽기
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  const page = pages[current]
+  const doneCount = pages.filter((p) => p.confirmed).length
+  const text = pageText(page)
+  const empty = !text
+  const tooLong = text.length > MAX_PAGE_CHARS
+  const left = page.lines.filter(needsCheck)
+  const active = page.lines.find((l) => l.id === activeId) ?? null
+  const src = sourceLabel(page)
+
+  const setLines = (fn: (lines: Line[]) => Line[]) => {
+    setPages((prev) =>
+      prev.map((p, i) => (i === current ? { ...p, lines: fn(p.lines), confirmed: false } : p)),
+    )
     setMessage(null)
   }
 
-  const handleEdit = (blockId: string, text: string) =>
-    updateLine(blockId, (l) => ({
-      text,
-      edited: true,
-      // 확인 필요 줄은 내용이 있고 ▒가 없으면 확인한 것으로 봅니다.
-      done: l.status !== 'ok' && text.trim().length > 0 && !UNREADABLE.test(text),
-    }))
-
-  const switchMode = (next: 'lines' | 'all') => {
-    if (next === mode) return
-    if (next === 'all') {
-      setAllText(lines.map((l) => l.text).join('\n'))
-    } else {
-      // 직접 입력한 내용을 다시 줄로 나눕니다. 직접 입력한 줄은 인식 신뢰도가 없습니다.
-      const next = allText
-        .split('\n')
-        .filter((t) => t.trim())
-        .map((text, i) => ({
-          blockId: `manual_${i + 1}`,
-          text,
-          confidence: null,
-          status: (UNREADABLE.test(text) ? 'fail' : 'ok') as LineStatus,
-          done: false,
-          edited: true,
-          candidates: [],
-        }))
-      setLines(next)
-      setSelected(null)
-    }
-    setMode(next)
-    setMessage(null)
+  const focusLine = (id: number, at?: number) => {
+    const el = inputs.current.get(id)
+    if (!el) return
+    el.focus()
+    const pos = at ?? el.value.length
+    el.setSelectionRange(pos, pos)
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 
-  const handleSubmit = () => {
-    let text: string
-    if (mode === 'all') {
-      text = allText
-      if (UNREADABLE.test(text)) {
-        setMessage('읽지 못한 글자(▒)가 남아 있어요. 원본을 보고 해당 부분을 직접 입력해 주세요.')
-        return
-      }
-    } else {
-      const left = lines.filter((l) => l.status !== 'ok' && !l.done)
-      if (left.length) {
-        const fails = left.filter((l) => l.status === 'fail').length
-        setMessage(
-          `확인이 필요한 줄이 ${left.length}개 남았어요` +
-            (fails ? ` (인식 실패 ${fails}개는 직접 입력이 필요해요)` : '') +
-            '. 인식하지 못한 내용으로는 점검하지 않아요.',
-        )
-        setSelected(left[0].blockId)
-        document.getElementById(`line-${left[0].blockId}`)?.focus()
-        return
-      }
-      text = lines.map((l) => l.text).join('\n')
+  // 흐린 줄은 고치면 확인한 것으로 봅니다.
+  const editLine = (id: number, value: string) =>
+    setLines((lines) => lines.map((l) => (l.id === id ? { ...l, text: value, checked: l.low } : l)))
+
+  const markChecked = (id: number) => {
+    setPages((prev) =>
+      prev.map((p, i) =>
+        i === current ? { ...p, lines: p.lines.map((l) => (l.id === id ? { ...l, checked: true } : l)) } : p,
+      ),
+    )
+    const next = page.lines.find((l) => l.id !== id && needsCheck(l))
+    if (next) focusLine(next.id, 0)
+  }
+
+  // Enter: 커서 위치에서 줄 나누기 / 줄 맨 앞에서 Backspace: 윗줄과 합치기 / ↑↓: 줄 이동
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>, line: Line, index: number) => {
+    if (e.nativeEvent.isComposing) return // 한글 조합 중
+    const el = e.currentTarget
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const added = newLine(line.text.slice(el.selectionEnd), { box: line.box })
+      const head = line.text.slice(0, el.selectionStart)
+      pendingFocus.current = { id: added.id, at: 0 }
+      setLines((lines) => lines.flatMap((l) => (l.id === line.id ? [{ ...l, text: head }, added] : [l])))
+    } else if (e.key === 'Backspace' && el.selectionStart === 0 && el.selectionEnd === 0 && index > 0) {
+      e.preventDefault()
+      const prev = page.lines[index - 1]
+      pendingFocus.current = { id: prev.id, at: prev.text.length }
+      setLines((lines) =>
+        lines
+          .filter((l) => l.id !== line.id)
+          .map((l) => (l.id === prev.id ? { ...l, text: prev.text + line.text, checked: l.low } : l)),
+      )
+    } else if (e.key === 'ArrowUp' && el.selectionStart === 0 && index > 0) {
+      e.preventDefault()
+      focusLine(page.lines[index - 1].id)
+    } else if (e.key === 'ArrowDown' && el.selectionEnd === el.value.length && index < page.lines.length - 1) {
+      e.preventDefault()
+      focusLine(page.lines[index + 1].id, 0)
     }
-    if (text.trim().length < 40) {
-      setMessage('계약서 내용이 너무 짧아요. 원본을 보고 내용을 입력해 주세요.')
+  }
+
+  // 여러 줄을 붙여넣으면 줄마다 나눕니다.
+  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>, line: Line) => {
+    const pasted = e.clipboardData.getData('text')
+    if (!pasted.includes('\n')) return
+    e.preventDefault()
+    const el = e.currentTarget
+    const merged = line.text.slice(0, el.selectionStart) + pasted + line.text.slice(el.selectionEnd)
+    const [first, ...rest] = merged.split(/\r?\n/)
+    const added = rest.map((t) => newLine(t, { box: line.box }))
+    const last = added[added.length - 1]
+    pendingFocus.current = { id: last.id, at: last.text.length }
+    setLines((lines) =>
+      lines.flatMap((l) => (l.id === line.id ? [{ ...l, text: first, checked: l.low }, ...added] : [l])),
+    )
+  }
+
+  const goTo = (i: number, note: string | null = null) => {
+    setCurrent(i)
+    setActiveId(null)
+    setMessage(note)
+    // 안내 문구는 아래 버튼 옆에 나오므로, 문구가 있으면 스크롤하지 않습니다.
+    if (!note) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const confirmPage = () => {
+    setPages((prev) => prev.map((p, i) => (i === current ? { ...p, confirmed: true } : p)))
+    const next = pages.findIndex((p, i) => i !== current && !p.confirmed)
+    if (next >= 0) goTo(next)
+  }
+
+  const handleNext = () => {
+    const rest = pages.filter((p) => !p.confirmed)
+    if (rest.length) {
+      goTo(
+        rest[0].page - 1,
+        `${rest.map((p) => p.page).join(', ')}페이지를 아직 확인하지 않았어요. 모든 페이지를 원본과 비교해 확인해 주세요.`,
+      )
       return
     }
-    // TODO: 분석 API(POST /api/contracts/{id}/analyses)에 edited_blocks와 함께 전송하고,
-    //       응답의 결과로 리포트 화면을 보여줍니다. 지금은 분석이 끝났다고 가정하고 예시 리포트로 이동합니다.
-    navigate('/reports/sample-1')
+    // TODO(다음 작업): pageText()로 만든 텍스트로 개인정보 가리기 → 동의 → 저장(POST /api/contracts)
+    setMessage('모든 페이지를 확인했어요. 개인정보 가리기 단계는 다음 작업에서 연결돼요.')
   }
-
-  const progress =
-    mode === 'all' ? 100 : counts.flagged ? Math.round((counts.done / counts.flagged) * 100) : 100
 
   return (
     <section className="wrap">
       <div className="review-head">
-        <p className="review-head__sub">
-          사진에서 글자를 읽어왔어요. 노란색·빨간색 줄은 잘못 읽었을 수 있으니 원본과 비교해
-          확인하거나 고쳐 주세요.
-        </p>
+        <div>
+          <h1 className="review-head__title">읽어온 글자 확인</h1>
+          <p className="review-head__sub">
+            한 줄씩 원본과 비교해 주세요. 줄을 누르면 원본에서 그 위치를 보여드려요. 특히{' '}
+            <b>금액·시간·날짜</b>가 정확해야 점검 결과도 정확해요.
+          </p>
+        </div>
+        <div className="review-prog" aria-live="polite">
+          <span>
+            확인 {doneCount} / {pages.length}페이지
+          </span>
+          <span className="bar" aria-hidden="true">
+            <i style={{ width: `${(doneCount / pages.length) * 100}%` }} />
+          </span>
+        </div>
       </div>
+
+      {pages.length > 1 && (
+        <div className="page-tabs" role="tablist" aria-label="페이지">
+          {pages.map((p, i) => (
+            <button
+              key={p.page}
+              type="button"
+              role="tab"
+              aria-selected={i === current}
+              className={p.confirmed ? 'page-tab page-tab--done' : 'page-tab'}
+              onClick={() => goTo(i)}
+            >
+              {p.confirmed && <CheckIcon size={14} />}
+              {p.page}페이지
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="review-grid">
         {/* 원본 */}
-        <div className="panel">
+        <div className="panel source-panel">
           <div className="panel__head">
-            원본 이미지 <span>줄을 선택하면 원본 위치가 표시돼요</span>
-          </div>
-          <div className="scan">
-            <div className="file-card">
-              <DocLinesIcon size={20} className="file-card__icon" />
-              <span>
-                <b>예시 계약서 사진</b>
-                <br />
-                API 연결 전이라 예시 인식 결과를 보여드려요.
-              </span>
-            </div>
-            {/* TODO: 실제 원본 이미지 + blocks[].regions 좌표로 위치 강조 */}
-            <div className="paper">
-              {lines.map((l, i) => (
-                <div
-                  key={l.blockId}
-                  className={[
-                    'paper__line',
-                    i === 0 ? 'paper__title' : '',
-                    l.status === 'low' ? 'faint' : '',
-                    l.status === 'fail' ? 'blur' : '',
-                    selected === l.blockId ? 'on' : '',
-                  ].join(' ')}
-                >
-                  {l.text}
-                </div>
+            원본 · {page.page}페이지
+            <div className="zoom" role="group" aria-label="원본 확대">
+              {ZOOMS.map((z) => (
+                <button key={z} type="button" aria-pressed={zoom === z} onClick={() => setZoom(z)}>
+                  {z === 100 ? '맞춤' : `${z}%`}
+                </button>
               ))}
             </div>
           </div>
+          <Scan page={page} zoom={zoom} box={active?.box ?? null} />
         </div>
 
-        {/* 인식 결과 */}
+        {/* 읽어온 글자 */}
         <div className="panel ocr-panel">
-          <div className="ocr-tools">
-            <div className="seg" role="group" aria-label="확인 방식">
-              <button type="button" aria-pressed={mode === 'lines'} onClick={() => switchMode('lines')}>
-                줄별 확인
-              </button>
-              <button type="button" aria-pressed={mode === 'all'} onClick={() => switchMode('all')}>
-                전체 직접 입력
-              </button>
-            </div>
-            <div className="prog">
-              <span>
-                {mode === 'all'
-                  ? '전체 내용을 직접 확인하는 중'
-                  : counts.flagged
-                    ? `확인 ${counts.done} / ${counts.flagged}줄`
-                    : '모든 줄이 정상 인식됐어요'}
-              </span>
-              <span className="bar" aria-hidden="true">
-                <i style={{ width: `${progress}%` }} />
-              </span>
-            </div>
+          <div className="panel__head">
+            읽어온 글자
+            <span className={`src-tag src-tag--${src.tone}`}>{src.text}</span>
           </div>
 
-          {mode === 'lines' ? (
-            <div className="ocr-lines">
-              {lines.map((l, i) => (
-                <div key={l.blockId} className={`ocr-line ${rowClass(l)}`}>
-                  <span className="ocr-line__no">{i + 1}</span>
-                  <div>
-                    <textarea
-                      id={`line-${l.blockId}`}
-                      rows={1}
-                      value={l.text}
-                      onChange={(e) => handleEdit(l.blockId, e.target.value.replace(/\n/g, ' '))}
-                      onKeyDown={(e) => {
-                        // 한 줄(블록) 안에는 줄바꿈을 넣지 않습니다.
-                        if (e.key === 'Enter') e.preventDefault()
-                      }}
-                      onFocus={() => setSelected(l.blockId)}
-                      aria-label={`${i + 1}번째 줄 인식 결과`}
-                    />
-                    {l.status !== 'ok' && !l.done && <div className="ocr-line__hint">{hintFor(l)}</div>}
-                    {l.status !== 'ok' && !l.done && digitOTokens(l.text).length > 0 && (
-                      <div className="suspects">
-                        <span>영문 O로 읽힌 곳:</span>
-                        {digitOTokens(l.text).map((t, i) => (
-                          <SuspectToken key={`${t}-${i}`} token={t} />
-                        ))}
-                      </div>
-                    )}
-                    {l.candidates.length > 0 && !l.done && (
-                      <div className="ocr-line__candidates">
-                        {l.candidates.map((c) => (
-                          <span key={c.field} className="pill">
-                            {c.field} 확인
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="ocr-line__side">
-                    <span className={`conf conf--${rowClass(l)}`}>
-                      {l.done && '✓ '}
-                      {l.confidence === null
-                        ? '직접 입력'
-                        : `신뢰도 ${Math.round(l.confidence * 100)}%`}
-                    </span>
-                    {l.status === 'low' && !l.done && (
-                      <button
-                        type="button"
-                        className="btn-mini"
-                        onClick={() => updateLine(l.blockId, () => ({ done: true }))}
-                      >
-                        맞아요
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              <label htmlFor="ocr-all" className="sr-only">
-                계약서 전체 내용
-              </label>
-              <textarea
-                id="ocr-all"
-                className="ocr-all"
-                value={allText}
-                onChange={(e) => {
-                  setAllText(e.target.value)
-                  setMessage(null)
-                }}
-              />
-            </>
-          )}
-
-          <div className="ocr-foot">
-            {message && (
-              <p className="ocr-msg" role="status">
-                {message}
-              </p>
-            )}
-            <div className="ocr-foot__actions">
-              <Link to="/" className="btn btn-ghost">
-                다시 올리기
-              </Link>
-              <button type="button" className="btn btn-primary ocr-foot__submit" onClick={handleSubmit}>
-                확인 완료 후 점검하기
+          {left.length > 0 ? (
+            <div className="ocr-note ocr-note--amber">
+              <span>
+                노란 줄 <b>{left.length}개</b>는 흐리게 읽혔어요. 원본과 비교해 고치거나 [맞아요]를 눌러
+                주세요.
+              </span>
+              <button type="button" className="btn-mini" onClick={() => focusLine(left[0].id, 0)}>
+                다음 노란 줄로
               </button>
             </div>
+          ) : empty ? (
+            <p className="ocr-note ocr-note--red">
+              이 페이지에서 글자를 읽지 못했어요. 원본을 보고 아래 칸에 직접 입력해 주세요.
+            </p>
+          ) : page.source === 'PDF_TEXT' ? (
+            <p className="ocr-note">PDF에 들어 있는 글자를 그대로 가져왔어요. 줄 순서만 확인해 주세요.</p>
+          ) : null}
+
+          <ol className="lines" ref={listRef}>
+            {page.lines.map((l, i) => (
+              <li
+                key={l.id}
+                className={['line', needsCheck(l) ? 'line--low' : '', l.id === activeId ? 'line--active' : ''].join(
+                  ' ',
+                )}
+              >
+                <span className="line__no" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <textarea
+                  ref={(el) => {
+                    if (el) inputs.current.set(l.id, el)
+                    else inputs.current.delete(l.id)
+                  }}
+                  rows={1}
+                  value={l.text}
+                  spellCheck={false}
+                  placeholder={page.lines.length === 1 ? '여기에 입력해 주세요' : undefined}
+                  aria-label={`${i + 1}번째 줄${needsCheck(l) ? ' (흐리게 읽힘)' : ''}`}
+                  onFocus={() => setActiveId(l.id)}
+                  onChange={(e) => editLine(l.id, e.target.value.replace(/\r?\n/g, ' '))}
+                  onKeyDown={(e) => handleKeyDown(e, l, i)}
+                  onPaste={(e) => handlePaste(e, l)}
+                />
+                {needsCheck(l) && (
+                  <button type="button" className="btn-mini line__ok" onClick={() => markChecked(l.id)}>
+                    맞아요
+                  </button>
+                )}
+              </li>
+            ))}
+          </ol>
+          <p className="lines-help">
+            <kbd>Enter</kbd> 줄 나누기 · 줄 맨 앞에서 <kbd>Backspace</kbd> 윗줄과 합치기 · <kbd>↑</kbd>
+            <kbd>↓</kbd> 줄 이동
+          </p>
+
+          <div className="ocr-page-foot">
+            <span className={tooLong ? 'ocr-count ocr-count--over' : 'ocr-count'}>
+              {text.length.toLocaleString()} / {MAX_PAGE_CHARS.toLocaleString()}자
+            </span>
+            {page.confirmed ? (
+              <span className="ocr-done">
+                <CheckIcon size={16} /> 확인한 페이지예요. 고치면 다시 확인해야 해요.
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                disabled={empty || tooLong || left.length > 0}
+                onClick={confirmPage}
+              >
+                {left.length ? `노란 줄 ${left.length}개를 먼저 확인해 주세요` : '이 페이지 확인 완료'}
+              </button>
+            )}
           </div>
         </div>
+      </div>
+
+      <div className="review-foot">
+        {message && (
+          <p className="ocr-msg" role="status">
+            {message}
+          </p>
+        )}
+        <div className="review-foot__actions">
+          <Link to="/" className="btn btn-ghost">
+            다른 파일 올리기
+          </Link>
+          <button type="button" className="btn btn-primary" onClick={handleNext}>
+            다음: 개인정보 가리기
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/** 원본 이미지. 선택한 줄의 위치를 표시하고 그 위치로 스크롤합니다. */
+function Scan({ page, zoom, box }: { page: PageDraft; zoom: number; box: Box | null }) {
+  const scanRef = useRef<HTMLDivElement>(null)
+  const markRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const scan = scanRef.current
+    const mark = markRef.current
+    if (!scan || !mark) return
+    const s = scan.getBoundingClientRect()
+    const m = mark.getBoundingClientRect()
+    scan.scrollBy({
+      top: m.top - s.top - s.height / 2 + m.height / 2,
+      left: zoom > 100 ? m.left - s.left - 24 : 0,
+      behavior: 'smooth',
+    })
+  }, [box, zoom])
+
+  // 줄 영역에 여유를 조금 줍니다.
+  const pad = page.height * 0.002
+  const pct = (v: number, total: number) => `${(v / total) * 100}%`
+
+  return (
+    <div className="scan" ref={scanRef}>
+      <div className="scan__sheet" style={{ width: `${zoom}%` }}>
+        <img src={page.previewUrl} alt={`${page.page}페이지 원본`} className="scan__img" />
+        {box && (
+          <div
+            ref={markRef}
+            className="scan__mark"
+            style={{
+              left: pct(box.x0 - pad, page.width),
+              top: pct(box.y0 - pad, page.height),
+              width: pct(box.x1 - box.x0 + pad * 2, page.width),
+              height: pct(box.y1 - box.y0 + pad * 2, page.height),
+            }}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Reading({ progress, kind }: { progress: OcrProgress | null; kind: UploadSelection['kind'] }) {
+  const total = progress?.total ?? 1
+  const page = progress?.page ?? 1
+  // 전체 진행률: 끝난 페이지 + 현재 페이지 진행 비율
+  const overall = ((page - 1 + (progress?.ratio ?? 0)) / total) * 100
+  return (
+    <section className="wrap review-reading" aria-busy="true">
+      <div className="reading-card">
+        <div className="spinner" aria-hidden="true" />
+        <h1>계약서 글자를 읽고 있어요</h1>
+        <p className="reading-card__step" aria-live="polite">
+          {total > 1 && `${page} / ${total}${kind === 'PDF' ? '페이지' : '장'} · `}
+          {progress?.label ?? '준비 중'}
+          {progress?.ratio != null && ` ${Math.round(progress.ratio * 100)}%`}
+        </p>
+        <span className="bar bar--wide" aria-hidden="true">
+          <i style={{ width: `${overall}%` }} />
+        </span>
+        <p className="reading-card__note">
+          글자는 이 브라우저 안에서 읽고 원본은 서버로 보내지 않아요.
+          <br />
+          처음 한 번은 글자 인식 모델(약 75MB)을 내려받느라 시간이 조금 더 걸려요.
+        </p>
       </div>
     </section>
   )

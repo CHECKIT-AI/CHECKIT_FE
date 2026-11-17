@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# PaddleOCR 모델(ONNX). scripts/paddle-models.sh로 만듭니다. 용량이 커서 올리지 않습니다.
+public/models/

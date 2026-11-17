@@ -1,13 +1,15 @@
-import type { DragEvent, MouseEvent } from 'react'
+import { useState, type ChangeEvent, type DragEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CheckIcon, LockIcon, UploadIcon } from '../components/icons'
+import { setPendingUpload } from '../upload/draft'
+import { MAX_PAGES, validateFiles } from '../upload/ocr'
 import './HomePage.css'
 
 const POINTS = ['누락과 위법을 구분한 판정', '검증된 법령 근거', '원문 문장 연결']
 
 const STEPS = [
-  { title: '계약서 업로드', desc: '텍스트를 추출하고, 인식이 어려운 부분은 다시 요청해요.' },
+  { title: '계약서 업로드', desc: '글자를 읽어오고, 잘못 읽었을 수 있는 부분은 직접 확인해요.' },
   { title: '자동 점검', desc: '조항을 나눠 필수 기재사항과 대조하고, 위험 조항을 찾아요.' },
   { title: '근거 확인', desc: '관련 법령의 적용 요건을 대조해 검증된 근거만 보여드려요.' },
   { title: '확인할 사항 정리', desc: '서명 전에 물어볼 내용을 질문 목록으로 정리해요.' },
@@ -16,11 +18,23 @@ const STEPS = [
 function HomePage() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
+  const [error, setError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
 
   // 소셜 로그인은 외부 사이트를 거쳐 돌아오므로 고른 파일이 사라집니다.
   // 그래서 파일을 고르기 전에 로그인 여부를 먼저 확인합니다.
-  const goLogin = (reason: 'upload' | 'analyze') =>
-    navigate('/login', { state: { reason, returnTo: '/' } })
+  const goLogin = () => navigate('/login', { state: { reason: 'upload', returnTo: '/' } })
+
+  const accept = (files: FileList | null) => {
+    if (!files?.length) return
+    const result = validateFiles(files)
+    if ('error' in result) {
+      setError(result.error)
+      return
+    }
+    setPendingUpload(result)
+    navigate('/review')
+  }
 
   const handleDropClick = (e: MouseEvent<HTMLLabelElement>) => {
     if (loading) {
@@ -29,41 +43,29 @@ function HomePage() {
     }
     if (!user) {
       e.preventDefault() // 파일 선택창을 열지 않음
-      goLogin('upload')
+      goLogin()
     }
+  }
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    accept(e.target.files)
+    e.target.value = '' // 같은 파일을 다시 골라도 동작하도록
   }
 
   const handleDragOver = (e: DragEvent<HTMLLabelElement>) => {
     e.preventDefault() // 브라우저가 파일을 직접 여는 것을 막음
+    setDragging(true)
   }
 
   const handleDrop = (e: DragEvent<HTMLLabelElement>) => {
     e.preventDefault()
+    setDragging(false)
     if (loading) return
     if (!user) {
-      goLogin('upload')
+      goLogin()
       return
     }
-    // TODO: 드롭한 파일 처리
-  }
-
-  // 예시 OCR 결과로 인식 결과 확인 화면을 체험합니다.
-  const handlePhotoDemo = () => {
-    if (loading) return
-    if (!user) {
-      goLogin('upload')
-      return
-    }
-    navigate('/review')
-  }
-
-  const handleStart = () => {
-    if (loading) return
-    if (!user) {
-      goLogin('analyze')
-      return
-    }
-    // TODO: 업로드·분석 API 연결
+    accept(e.dataTransfer.files)
   }
 
   return (
@@ -95,14 +97,17 @@ function HomePage() {
         <div className="upload-card">
           <div>
             <h2>계약서 올리기</h2>
-            <p className="upload-card__sub">텍스트 파일을 올리거나, 계약서 내용을 붙여넣으세요.</p>
+            <p className="upload-card__sub">
+              PDF 한 개 또는 계약서 사진(JPG·PNG) 최대 {MAX_PAGES}장을 올려 주세요.
+            </p>
           </div>
 
           <label
-            className="drop"
+            className={dragging ? 'drop drop--over' : 'drop'}
             htmlFor="contract-file"
             onClick={handleDropClick}
             onDragOver={handleDragOver}
+            onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
           >
             <span className="drop__icon">
@@ -110,44 +115,28 @@ function HomePage() {
             </span>
             <span>
               <strong>파일을 끌어오거나 클릭해서 선택</strong>
-              <small>텍스트·PDF·Word는 바로 불러오고, 사진·스캔본은 글자 인식 후 확인해요</small>
+              <small>사진이 여러 장이면 한 번에 골라 주세요. 파일 이름 순서대로 페이지가 정해져요.</small>
             </span>
             <input
               id="contract-file"
               type="file"
               className="sr-only"
-              accept=".txt,.pdf,.docx,.jpg,.jpeg,.png"
+              accept="application/pdf,image/jpeg,image/png"
+              multiple
+              onChange={handleChange}
             />
           </label>
 
-          <label htmlFor="contract-text" className="sr-only">
-            계약서 내용
-          </label>
-          <textarea
-            id="contract-text"
-            className="contract-text"
-            placeholder="여기에 근로계약서 내용을 붙여넣거나, 아래 '샘플 계약서'를 눌러보세요."
-          />
-
-          <div className="upload-card__actions">
-            <button type="button" className="btn btn-ghost">
-              샘플 계약서
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={handlePhotoDemo}>
-              사진 계약서로 체험
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary upload-card__start"
-              onClick={handleStart}
-            >
-              점검 시작하기
-            </button>
-          </div>
+          {error && (
+            <p className="upload-error" role="alert">
+              {error}
+            </p>
+          )}
 
           <p className="privacy">
             <LockIcon size={16} className="privacy__icon" />
-            개인정보는 가린 뒤 분석해요.
+            글자는 이 브라우저 안에서 읽어요. 원본 파일은 서버로 보내지 않고, 개인정보를 가린
+            텍스트만 점검에 사용해요.
           </p>
         </div>
       </div>
