@@ -98,7 +98,7 @@ function HomePage() {
           <div>
             <h2>계약서 올리기</h2>
             <p className="upload-card__sub">
-              PDF 한 개 또는 계약서 사진(JPG·PNG) 최대 {MAX_PAGES}장을 올려 주세요.
+              PDF 한 개 또는 계약서 사진(JPG·PNG·HEIC) 최대 {MAX_PAGES}장을 올려 주세요.
             </p>
           </div>
 
@@ -121,7 +121,7 @@ function HomePage() {
               id="contract-file"
               type="file"
               className="sr-only"
-              accept="application/pdf,image/jpeg,image/png"
+              accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
               multiple
               onChange={handleChange}
             />

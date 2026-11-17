@@ -5,6 +5,7 @@
 
 import type { InputKind } from '../types/api'
 import { OcrError } from './errors'
+import { heicToJpeg, isHeicName, looksLikeHeic } from './heic'
 
 /** 백엔드 제한: 페이지 1~10개, 페이지당 20,000자 (app/contracts.py, app/analysis.py) */
 export const MAX_PAGES = 10
@@ -48,7 +49,7 @@ export type OcrProgress = {
   label: string
 }
 
-/** 고른 파일이 PDF 한 개 또는 JPG·PNG 최대 10장인지 확인합니다. */
+/** 고른 파일이 PDF 한 개 또는 JPG·PNG·HEIC 최대 10장인지 확인합니다. */
 export function validateFiles(list: FileList | File[]): UploadSelection | { error: string } {
   const files = [...list]
   if (!files.length) return { error: '파일을 골라 주세요.' }
@@ -58,8 +59,8 @@ export function validateFiles(list: FileList | File[]): UploadSelection | { erro
       ? { kind: 'PDF', files }
       : { error: 'PDF는 한 번에 한 개만 올릴 수 있어요. 사진과 섞어서 올릴 수도 없어요.' }
   }
-  if (!files.every((f) => IMAGE_TYPES.includes(f.type))) {
-    return { error: 'PDF 또는 JPG·PNG 사진만 올릴 수 있어요.' }
+  if (!files.every((f) => IMAGE_TYPES.includes(f.type) || isHeicName(f))) {
+    return { error: 'PDF 또는 JPG·PNG·HEIC 사진만 올릴 수 있어요.' }
   }
   if (files.length > MAX_PAGES) {
     return { error: `사진은 최대 ${MAX_PAGES}장까지 올릴 수 있어요.` }
@@ -153,9 +154,25 @@ export async function extractPages(
       }
       void pdf.destroy()
     } else {
-      for (const [i, file] of selection.files.entries()) {
+      for (const [i, original] of selection.files.entries()) {
         checkCancelled()
         current = { page: i + 1, total: selection.files.length }
+        // 아이폰 사진(HEIC)은 JPG로 바꿔서 읽습니다. 확장자만 .jpg·.png로 바뀐 HEIC도 여기서 걸러집니다.
+        let file = original
+        if (await looksLikeHeic(original)) {
+          onProgress({ ...current, ratio: null, label: '아이폰 사진(HEIC)을 JPG로 바꾸는 중' })
+          file = await heicToJpeg(original).catch((e: unknown) => {
+            console.error('[HEIC]', e)
+            throw new OcrError(
+              [
+                `'${original.name}' 사진(HEIC)을 바꾸지 못했어요.`,
+                '파일이 손상되었을 수 있어요.',
+                '사진 앱에서 JPG로 내보내서 다시 올려 주세요.',
+              ].join('\n'),
+            )
+          })
+          checkCancelled()
+        }
         const previewUrl = URL.createObjectURL(file)
         const bitmap = await createImageBitmap(file).catch(() => {
           throw new OcrError(imageErrorMessage(file))
@@ -230,14 +247,12 @@ function canvasToUrl(canvas: HTMLCanvasElement) {
   )
 }
 
-/** 사진을 열지 못했을 때. 대부분 손상된 파일이거나, 확장자만 JPG·PNG이고 실제 형식이 다른 경우(예: 아이폰 HEIC)입니다. */
+/** 사진을 열지 못했을 때. 대부분 손상된 파일이거나, 확장자와 실제 형식이 다른 경우입니다. (HEIC는 위에서 바꿔서 읽음) */
 function imageErrorMessage(file: File) {
-  const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.jpg'
   return [
     `'${file.name}' 파일을 열지 못했어요.`,
     '파일이 손상되었거나, 확장자와 실제 파일 형식이 다를 수 있어요.',
-    `예: 아이폰 HEIC 사진의 이름만 ${ext}로 바꾼 경우`,
-    'JPG나 PNG로 다시 저장해서 올려 주세요.',
+    'JPG·PNG·HEIC 사진이 맞는지 확인하고 다시 올려 주세요.',
   ].join('\n')
 }
 

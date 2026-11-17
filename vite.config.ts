@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     // PaddleOCR Worker가 모듈(import)을 쓰므로 ES 모듈 형식으로 빌드합니다.
     worker: { format: 'es' },
+    // 파일을 올릴 때 처음 불러오는 라이브러리(PDF·OCR·HEIC)는 미리 묶어 둡니다.
+    // 안 그러면 개발 서버가 도중에 다시 묶으면서 페이지를 새로고침해 고른 파일이 사라집니다.
+    optimizeDeps: { include: ['pdfjs-dist', 'onnxruntime-web/webgpu', 'heic-to'] },
     server: {
       port: 5173,
       strictPort: true,
