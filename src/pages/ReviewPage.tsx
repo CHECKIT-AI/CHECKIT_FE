@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CheckIcon } from '../components/icons'
 import { getPendingUpload } from '../upload/draft'
+import { OcrError } from '../upload/errors'
 import {
   extractPages,
   MAX_PAGE_CHARS,
@@ -65,6 +66,9 @@ function pageText(p: { lines: { text: string }[] }) {
 
 const needsCheck = (l: Line) => l.low && !l.checked
 
+/** 글자 인식 신뢰도(%)가 이보다 낮으면 다시 찍어 달라고 안내합니다. */
+const RETAKE_BELOW = 85
+
 function sourceLabel(p: PageDraft) {
   if (p.source === 'PDF_TEXT') return { text: 'PDF 글자 그대로', tone: 'green' }
   const conf = p.confidence ?? 0
@@ -123,7 +127,15 @@ function Review({ selection }: { selection: UploadSelection }) {
       })
       .catch((e: unknown) => {
         if (e instanceof OcrCancelled) return
-        setPhase({ kind: 'error', message: e instanceof Error ? e.message : '글자를 읽지 못했어요.' })
+        // 사용자용 문구가 아닌 오류(영어 원문 등)는 일반 안내로 바꿉니다.
+        if (!(e instanceof OcrError)) console.error('[OCR]', e)
+        setPhase({
+          kind: 'error',
+          message:
+            e instanceof OcrError
+              ? e.message
+              : '글자를 읽는 중에 문제가 생겼어요.\n[다시 읽기]를 눌러 보고, 그래도 안 되면\n파일이 손상되지 않았는지, JPG·PNG·PDF가 맞는지 확인해 주세요.',
+        })
       })
     return () => {
       controller.abort()
@@ -185,7 +197,14 @@ function Review({ selection }: { selection: UploadSelection }) {
     return (
       <section className="wrap review-empty">
         <h1>계약서를 읽지 못했어요</h1>
-        <p>{phase.message}</p>
+        {/* 첫 줄은 무슨 일인지, 나머지 줄은 어떻게 하면 되는지 */}
+        <div className="review-error">
+          {phase.message.split('\n').map((line, i) => (
+            <p key={i} className={i === 0 ? 'review-error__lead' : undefined}>
+              {line}
+            </p>
+          ))}
+        </div>
         <div className="review-empty__actions">
           <Link to="/" className="btn btn-ghost">
             다른 파일 올리기
@@ -375,6 +394,27 @@ function Review({ selection }: { selection: UploadSelection }) {
             읽어온 글자
             <span className={`src-tag src-tag--${src.tone}`}>{src.text}</span>
           </div>
+
+          {page.source === 'OCR' && !empty && (page.confidence ?? 0) < RETAKE_BELOW && (
+            <div className="retake" role="note">
+              <p className="retake__title">
+                글자가 잘 읽히지 않았어요 <span>(신뢰도 {page.confidence ?? 0}%)</span>
+              </p>
+              <p>
+                {selection.kind === 'IMAGES'
+                  ? '계약서를 정면에서, 글자가 선명하게 나오도록 다시 찍어서 올리면 더 정확하게 읽을 수 있어요.'
+                  : '스캔 상태가 흐려요. 계약서를 더 선명하게 스캔하거나, 정면에서 글자가 잘 나오도록 사진을 찍어서 올리면 더 정확하게 읽을 수 있어요.'}
+              </p>
+              <ul>
+                <li>종이를 평평하게 펴고 바로 위에서 찍기</li>
+                <li>그림자나 빛 반사가 없는 밝은 곳에서 찍기</li>
+                <li>한 장에 한 페이지가 꽉 차고 흔들리지 않게 찍기</li>
+              </ul>
+              <Link to="/" className="btn-mini">
+                다시 찍어서 올리기
+              </Link>
+            </div>
+          )}
 
           {left.length > 0 ? (
             <div className="ocr-note ocr-note--amber">

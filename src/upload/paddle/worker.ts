@@ -32,20 +32,20 @@ let currentId = 0
 /** 요청을 하나씩 차례로 처리합니다. 같은 모델을 동시에 돌리지 않도록 합니다. */
 let queue: Promise<void> = Promise.resolve()
 
+/** 사용자에게 그대로 보여줘도 되는 오류 */
+class UserError extends Error {}
+
+const MODEL_HINT = import.meta.env.DEV ? "\n(개발) 프로젝트에서 'bash scripts/paddle-models.sh'를 먼저 실행해 주세요." : ''
+
 /** 진행률을 알리면서 파일을 받습니다. */
 async function download(path: string, onBytes: (n: number) => void) {
-  const res = await fetch(`${MODEL_BASE}/${path}`)
-  if (!res.ok || !res.body) {
-    throw new Error(
-      `PaddleOCR 모델 파일(${path})을 찾지 못했어요. 프로젝트에서 'bash scripts/paddle-models.sh'를 먼저 실행해 주세요.`,
-    )
-  }
-  const type = res.headers.get('content-type') ?? ''
-  if (type.includes('text/html')) {
-    // 개발 서버는 없는 파일에 index.html을 돌려줍니다.
-    throw new Error(
-      `PaddleOCR 모델 파일(${path})이 없어요. 프로젝트에서 'bash scripts/paddle-models.sh'를 먼저 실행해 주세요.`,
-    )
+  const res = await fetch(`${MODEL_BASE}/${path}`).catch(() => {
+    throw new UserError('글자 인식 모델을 받지 못했어요.\n인터넷 연결을 확인하고 다시 시도해 주세요.')
+  })
+  // 개발 서버는 없는 파일에 index.html을 돌려줍니다.
+  const html = (res.headers.get('content-type') ?? '').includes('text/html')
+  if (!res.ok || !res.body || html) {
+    throw new UserError(`글자 인식 모델(${path})을 불러오지 못했어요.\n잠시 후 다시 시도해 주세요.${MODEL_HINT}`)
   }
   const reader = res.body.getReader()
   const chunks: Uint8Array[] = []
@@ -404,7 +404,15 @@ async function handle(msg: Extract<PaddleRequest, { type: 'recognize' }>) {
   } catch (err) {
     msg.image.close()
     if (err instanceof Cancelled) post({ type: 'cancelled', id: msg.id })
-    else post({ type: 'error', id: msg.id, message: err instanceof Error ? err.message : String(err) })
+    else {
+      if (!(err instanceof UserError)) console.error('[PaddleOCR]', err)
+      post({
+        type: 'error',
+        id: msg.id,
+        message: err instanceof Error ? err.message : String(err),
+        user: err instanceof UserError,
+      })
+    }
   } finally {
     cancelled.delete(msg.id)
   }

@@ -4,6 +4,7 @@
 // OCR은 PaddleOCR(ONNX)을 브라우저에서 돌립니다. (src/upload/paddle/)
 
 import type { InputKind } from '../types/api'
+import { OcrError } from './errors'
 
 /** 백엔드 제한: 페이지 1~10개, 페이지당 20,000자 (app/contracts.py, app/analysis.py) */
 export const MAX_PAGES = 10
@@ -89,7 +90,9 @@ export async function extractPages(
 
   const recognize = async (image: HTMLCanvasElement | File) => {
     const { paddleRecognize } = await import('./paddle/client')
-    const bitmap = await createImageBitmap(image)
+    const bitmap = await createImageBitmap(image).catch(() => {
+      throw new OcrError('이미지를 열지 못했어요.\n파일이 손상되었을 수 있어요.\n다른 파일로 다시 올려 주세요.')
+    })
     if (signal.aborted) bitmap.close()
     checkCancelled()
     return paddleRecognize(bitmap, ({ stage, ratio }) => {
@@ -120,10 +123,10 @@ export async function extractPages(
       })
       signal.addEventListener('abort', () => void task.destroy(), { once: true })
       const pdf = await task.promise.catch((e: unknown) => {
-        throw new Error(pdfErrorMessage(e))
+        throw new OcrError(pdfErrorMessage(e))
       })
       if (pdf.numPages > MAX_PAGES) {
-        throw new Error(`PDF는 최대 ${MAX_PAGES}페이지까지 점검할 수 있어요. (이 파일은 ${pdf.numPages}페이지)`)
+        throw new OcrError(`PDF가 너무 길어요. (${pdf.numPages}페이지)\n최대 ${MAX_PAGES}페이지까지 점검할 수 있어요.`)
       }
       for (let n = 1; n <= pdf.numPages; n++) {
         checkCancelled()
@@ -154,7 +157,9 @@ export async function extractPages(
         checkCancelled()
         current = { page: i + 1, total: selection.files.length }
         const previewUrl = URL.createObjectURL(file)
-        const bitmap = await createImageBitmap(file)
+        const bitmap = await createImageBitmap(file).catch(() => {
+          throw new OcrError(imageErrorMessage(file))
+        })
         const size = { width: bitmap.width, height: bitmap.height }
         bitmap.close()
         pages.push({ page: i + 1, source: 'OCR', previewUrl, ...size, lines: [], confidence: null })
@@ -225,9 +230,20 @@ function canvasToUrl(canvas: HTMLCanvasElement) {
   )
 }
 
+/** 사진을 열지 못했을 때. 대부분 손상된 파일이거나, 확장자만 JPG·PNG이고 실제 형식이 다른 경우(예: 아이폰 HEIC)입니다. */
+function imageErrorMessage(file: File) {
+  const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.jpg'
+  return [
+    `'${file.name}' 파일을 열지 못했어요.`,
+    '파일이 손상되었거나, 확장자와 실제 파일 형식이 다를 수 있어요.',
+    `예: 아이폰 HEIC 사진의 이름만 ${ext}로 바꾼 경우`,
+    'JPG나 PNG로 다시 저장해서 올려 주세요.',
+  ].join('\n')
+}
+
 function pdfErrorMessage(e: unknown) {
   const name = e instanceof Error ? e.name : ''
-  if (name === 'PasswordException') return '비밀번호가 걸린 PDF는 열 수 없어요. 비밀번호를 풀고 다시 올려 주세요.'
-  if (name === 'InvalidPDFException') return 'PDF 파일이 손상되었거나 PDF 형식이 아니에요.'
-  return 'PDF를 열지 못했어요.'
+  if (name === 'PasswordException') return '비밀번호가 걸린 PDF는 열 수 없어요.\n비밀번호를 풀고 다시 올려 주세요.'
+  if (name === 'InvalidPDFException') return 'PDF 파일을 열지 못했어요.\n파일이 손상되었거나, 확장자만 .pdf이고 실제로는 PDF가 아닐 수 있어요.\n파일을 확인하고 다시 올려 주세요.'
+  return 'PDF 파일을 열지 못했어요.\n파일이 손상되었거나, 확장자와 실제 파일 형식이 다를 수 있어요.\n파일을 확인하고 다시 올려 주세요.'
 }

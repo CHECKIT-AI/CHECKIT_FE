@@ -1,6 +1,7 @@
 // PaddleOCR Worker를 부르고, 찾은 글자 영역을 줄 단위로 묶습니다.
 // Worker와 모델은 한 번 만들면 계속 씁니다. (다시 받지 않도록)
 
+import { OcrError } from '../errors'
 import type { Box, ExtractedLine } from '../ocr'
 import type { PaddleBackendChoice, PaddleRegion, PaddleResponse } from './protocol'
 
@@ -55,7 +56,7 @@ export function paddleRecognize(
         return
       }
       if (msg.type === 'error') {
-        reject(new Error(msg.message))
+        reject(msg.user ? new OcrError(msg.message) : new Error(msg.message))
         return
       }
       console.info(

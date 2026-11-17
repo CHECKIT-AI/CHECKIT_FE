@@ -33,5 +33,6 @@ export type PaddleResponse =
       /** 단계별 걸린 시간(ms): 모델 준비, 영역 찾기, 글자 인식 */
       ms: { load: number; detect: number; recognize: number }
     }
-  | { type: 'error'; id: number; message: string }
+  /** user: 사용자에게 그대로 보여줘도 되는 문구인지 */
+  | { type: 'error'; id: number; message: string; user: boolean }
   | { type: 'cancelled'; id: number }
