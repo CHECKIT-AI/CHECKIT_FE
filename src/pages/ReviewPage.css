@@ -17,9 +17,10 @@
 
 .review-head__sub {
   margin: 0;
-  max-width: 640px;
-  font-size: 14px;
-  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--ink2);
+  word-break: keep-all; /* 한글 낱말 중간에서 줄이 바뀌지 않게 */
 }
 
 .review-head__sub b {

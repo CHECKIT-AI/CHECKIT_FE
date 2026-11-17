@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type
 import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CheckIcon } from '../components/icons'
-import { getPendingUpload } from '../upload/draft'
+import { getPendingUpload, setConfirmedText } from '../upload/draft'
 import { OcrError } from '../upload/errors'
 import {
   extractPages,
@@ -14,6 +14,8 @@ import {
   type OcrProgress,
   type UploadSelection,
 } from '../upload/ocr'
+import { detectMasks, type Mask, type PageText } from '../upload/privacy'
+import PrivacyStep from './PrivacyStep'
 import './ReviewPage.css'
 
 type Line = {
@@ -103,6 +105,11 @@ function Review({ selection }: { selection: UploadSelection }) {
   const [activeId, setActiveId] = useState<number | null>(null)
   const [zoom, setZoom] = useState(100)
   const [message, setMessage] = useState<string | null>(null)
+  /** 1단계: 글자 확인, 2단계: 개인정보 가리기 */
+  const [step, setStep] = useState<'review' | 'privacy'>('review')
+  /** 개인정보 가림. 글자를 고치지 않았으면 돌아왔다 가도 그대로 둡니다. */
+  const [privacy, setPrivacy] = useState<{ key: string; pages: PageText[]; masks: Mask[] } | null>(null)
+  const [privacyStatus, setPrivacyStatus] = useState<string | null>(null)
   const inputs = useRef(new Map<number, HTMLTextAreaElement>())
   /** 줄을 나누거나 합친 뒤 커서를 옮길 위치 */
   const pendingFocus = useRef<{ id: number; at: number } | null>(null)
@@ -164,7 +171,7 @@ function Review({ selection }: { selection: UploadSelection }) {
     fitRef.current = fitLines
   })
   const listRef = useRef<HTMLOListElement>(null)
-  const ready = phase.kind === 'ready'
+  const ready = phase.kind === 'ready' && step === 'review'
   useEffect(() => {
     const list = listRef.current
     if (!ready || !list) return
@@ -221,6 +228,30 @@ function Review({ selection }: { selection: UploadSelection }) {
           </button>
         </div>
       </section>
+    )
+  }
+
+  if (step === 'privacy' && privacy) {
+    return (
+      <PrivacyStep
+        pages={privacy.pages}
+        masks={privacy.masks}
+        onMasksChange={(masks) => {
+          setPrivacy({ ...privacy, masks })
+          setPrivacyStatus(null)
+        }}
+        onBack={() => {
+          setStep('review')
+          setPrivacyStatus(null)
+          window.scrollTo({ top: 0 })
+        }}
+        onDone={(masked) => {
+          setConfirmedText({ kind: selection.kind, pages: masked })
+          // TODO(다음 작업): POST /api/contracts 로 저장하고 분석 준비 화면으로 이동
+          setPrivacyStatus('개인정보를 가렸어요. 저장은 다음 작업에서 연결돼요.')
+        }}
+        status={privacyStatus}
+      />
     )
   }
 
@@ -330,8 +361,13 @@ function Review({ selection }: { selection: UploadSelection }) {
       )
       return
     }
-    // TODO(다음 작업): pageText()로 만든 텍스트로 개인정보 가리기 → 동의 → 저장(POST /api/contracts)
-    setMessage('모든 페이지를 확인했어요. 개인정보 가리기 단계는 다음 작업에서 연결돼요.')
+    // 개인정보 가리기 단계로. 글자를 고쳤으면 다시 찾습니다.
+    const texts = pages.map((p) => ({ page: p.page, text: pageText(p) }))
+    const key = JSON.stringify(texts)
+    if (privacy?.key !== key) setPrivacy({ key, pages: texts, masks: detectMasks(texts) })
+    setMessage(null)
+    setStep('privacy')
+    window.scrollTo({ top: 0 })
   }
 
   return (
@@ -340,8 +376,11 @@ function Review({ selection }: { selection: UploadSelection }) {
         <div>
           <h1 className="review-head__title">읽어온 글자 확인</h1>
           <p className="review-head__sub">
-            한 줄씩 원본과 비교해 주세요. 줄을 누르면 원본에서 그 위치를 보여드려요. 특히{' '}
-            <b>금액·시간·날짜</b>가 정확해야 점검 결과도 정확해요.
+            한 줄씩 원본과 비교해 주세요.
+            <br />
+            줄을 누르면 원본에서 그 위치를 보여드려요.
+            <br />
+            특히 <b>금액·시간·날짜</b>가 정확해야 점검 결과도 정확해요.
           </p>
         </div>
         <div className="review-prog" aria-live="polite">
