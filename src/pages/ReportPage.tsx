@@ -17,6 +17,7 @@ import {
   groupCounts,
   groupOf,
   isDiscovered,
+  isPresenceUnclear,
   isWritten,
   pageRanges,
   statusMetaOf,
@@ -181,6 +182,12 @@ function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnTyp
 
       {item.quoted_text ? (
         <Quote text={item.quoted_text} page={page} />
+      ) : isPresenceUnclear(item) ? (
+        <div className="hold" role="note">
+          <strong>계약서에 적혀 있는지 확실하지 않아요</strong>
+          관련 내용을 분명하게 찾지 못했어요. 부속합의서·취업규칙·임금 지급 기준 같은 <b>별도 서면</b>을 따른다고
+          적혀 있다면, 그 서면에 이 내용이 들어 있는지도 함께 확인해 보세요.
+        </div>
       ) : category === 'MISSING' && !written ? (
         <div className="notfound">계약서에서 관련 문장을 찾지 못했어요. 사장님께 직접 확인해 보세요.</div>
       ) : null}
@@ -188,8 +195,9 @@ function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnTyp
       {explanation.held && (
         <div className="hold" role="note">
           <strong>판단을 보류했어요</strong>
-          근거가 되는 법령이나 적용 시점을 확인하지 못해, 위반인지 아닌지 단정하지 않았어요. 아래 내용을 참고해
-          사장님께 직접 확인해 보세요.
+          {category === 'MISSING'
+            ? '근거가 되는 법령을 확인하지 못해 "누락"이라고 단정하지 않았어요. 계약서에 이 내용이 있는지 사장님께 직접 확인해 보세요.'
+            : '근거가 되는 법령이나 적용 시점을 확인하지 못해, 위반인지 아닌지 단정하지 않았어요. 아래 내용을 참고해 사장님께 직접 확인해 보세요.'}
         </div>
       )}
 

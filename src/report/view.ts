@@ -72,9 +72,19 @@ export function groupOf(item: CheckItem): GroupKey {
   return isWritten(item) ? 'PRESENT' : categoryOf(item)
 }
 
+/**
+ * 필수 기재사항이 계약서에 적혀 있는지 Gemini가 판단하지 못한 경우(document_presence UNCLEAR).
+ * 백엔드(2026-11-17 adb88d9) 기준으로, 부속합의서·별도 서면을 참조만 하고 내용이 없을 때도 여기에 해당합니다.
+ */
+export function isPresenceUnclear(item: CheckItem) {
+  return categoryOf(item) === 'MISSING' && item.document_presence === 'UNCLEAR' && !isWritten(item)
+}
+
 /** 화면에 표시할 상태 태그. 적혀 있는 필수 기재사항은 '확인 필요' 대신 '적혀 있음'으로 보여줍니다. */
 export function statusMetaOf(item: CheckItem): { label: string; tone: Tone } {
-  return isWritten(item) ? { label: '적혀 있음', tone: 'green' } : STATUS_META[item.status]
+  if (isWritten(item)) return { label: '적혀 있음', tone: 'green' }
+  if (isPresenceUnclear(item)) return { label: '불명확', tone: 'gray' }
+  return STATUS_META[item.status]
 }
 
 export function titleOf(item: CheckItem) {
@@ -148,7 +158,13 @@ const HOLD_PHRASES = [
   '적용 시점과 법령 근거를 검증할 수 없어 판단을 보류합니다.',
   '법령 인용을 검증할 수 없어 추가 판단을 보류합니다.',
   '법령 인용을 검증할 수 없어 판단을 보류합니다.',
+  // 필수 기재사항: 기재 여부는 알지만 법령 근거를 검증하지 못한 경우 (analysis_jobs.py _resolve_missing)
+  '계약서 기재는 확인했지만 적용 법령 근거를 검증하지 못했습니다.',
+  '계약서에서 관련 문구를 찾지 못했지만 적용 법령 근거를 검증하지 못했습니다.',
 ]
+
+/** 필수 기재사항의 기재 여부를 판단하지 못했을 때 백엔드가 쓰는 고정 문구. 화면에서는 따로 안내합니다. */
+const UNCLEAR_PHRASE = '계약서 기재 여부를 확인하지 못했습니다.'
 
 export type Explanation = {
   /** 백엔드가 판단을 보류했는지 */
@@ -158,7 +174,7 @@ export type Explanation = {
 }
 
 function stripHold(raw: string) {
-  let text = raw
+  let text = raw.split(UNCLEAR_PHRASE).join(' ')
   let held = false
   for (const phrase of HOLD_PHRASES) {
     if (text.includes(phrase)) {
@@ -171,9 +187,15 @@ function stripHold(raw: string) {
 
 export function explanationOf(item: CheckItem): Explanation {
   const own = stripHold(item.explanation)
-  if (own.text || !own.held) return own
-  // 보류 문구만 있으면 규칙이 처음 만든 설명(무엇을 확인해야 하는지)을 보여줍니다.
-  return { held: true, text: stripHold(item.rule_candidate?.explanation ?? '').text }
+  // 계약서에 적혀 있는 필수 기재사항은 법령 근거를 검증하지 못했어도 '적혀 있음'이 핵심이라 보류로 보여주지 않습니다.
+  const held = own.held && !isWritten(item)
+  if (own.text) return { held, text: own.text }
+  if (isWritten(item)) {
+    const name = item.required_information[0] ?? item.rule_candidate?.required_information?.[0] ?? '해당 항목'
+    return { held: false, text: `계약서에서 ${name} 관련 문구를 확인했어요. 내용이 충분한지는 확인이 필요해요.` }
+  }
+  // 고정 문구만 있으면 규칙이 처음 만든 설명(무엇을 확인해야 하는지)을 보여줍니다.
+  return { held, text: stripHold(item.rule_candidate?.explanation ?? '').text }
 }
 
 /** 이 길이를 넘는 인용 문구는 접어서 보여줍니다. */

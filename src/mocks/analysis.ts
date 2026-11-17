@@ -94,23 +94,43 @@ const REQUIRED_NAME: Record<string, string> = {
 }
 
 /**
- * 백엔드(2026-11-14 e21057d)는 필수 기재사항 문구를 찾아도 PRESENT로 확정하지 않고
- * NEEDS_CONFIRMATION + document_presence PRESENT + 이 설명으로 저장합니다. 예시도 같게 맞춥니다.
+ * 필수 기재사항은 백엔드(analysis_jobs.py _resolve_missing)가 상태와 설명을 고정 문구로 덮어씁니다. 예시도 같게 맞춥니다.
+ * - 적혀 있음: NEEDS_CONFIRMATION + document_presence PRESENT + '…문구를 확인했지만 내용의 충분성은 확인이 필요합니다.'
+ * - 없음:     MISSING_SUSPECTED + ABSENT + '…관련 문구를 찾지 못했습니다.'
+ * - 불명확:   NEEDS_CONFIRMATION + UNCLEAR + '계약서 기재 여부를 확인하지 못했습니다.' (인용 문구·위치 없음)
+ * 2026-11-17(adb88d9)부터 새 결과에는 필수 기재사항 8개가 항상 들어갑니다.
  */
-function asBackendWritten(s: Spec): Spec {
-  if (s.category !== 'MISSING' || s.status !== 'PRESENT') return s
+function asBackendMissing(s: Spec): Spec {
+  if (s.category !== 'MISSING') return s
   const name = REQUIRED_NAME[s.code] ?? s.labels[0]
-  return {
-    ...s,
-    status: 'NEEDS_CONFIRMATION',
-    presence: 'PRESENT',
-    explanation: `계약서에서 ${name} 관련 문구를 확인했지만 내용의 충분성은 확인이 필요합니다.`,
-    info: s.info ?? [name],
+  const info = [name]
+  if (s.status === 'PRESENT') {
+    return {
+      ...s,
+      status: 'NEEDS_CONFIRMATION',
+      presence: 'PRESENT',
+      explanation: `계약서에서 ${name} 관련 문구를 확인했지만 내용의 충분성은 확인이 필요합니다.`,
+      info,
+    }
   }
+  if (s.presence === 'ABSENT' && s.status === 'MISSING_SUSPECTED') {
+    return { ...s, explanation: `계약서에서 ${name} 관련 문구를 찾지 못했습니다.`, info }
+  }
+  if (s.presence === 'UNCLEAR') {
+    return {
+      ...s,
+      status: 'NEEDS_CONFIRMATION',
+      quote: undefined,
+      clause: undefined,
+      explanation: '계약서 기재 여부를 확인하지 못했습니다.',
+      info,
+    }
+  }
+  return s
 }
 
 function makeItems(revision: string, specs: Spec[]): Built[] {
-  return specs.map(asBackendWritten).map((s, i) => {
+  return specs.map(asBackendMissing).map((s, i) => {
     const loc = s.clause ? [{ page: 1, clause_id: `${revision}:${s.clause}` }] : []
     return {
       laws: s.laws ?? [],
@@ -206,7 +226,7 @@ const S1_TEXT = `근 로 계 약 서
 제1조(계약기간) 2026년 12월 1일부터 2027년 11월 30일까지로 한다.
 제2조(근무장소 및 업무) 근무장소는 가상시 미래로 108길 18 ○○카페 매장으로 하고, 업무는 음료 제조 및 매장 관리로 한다.
 제3조(근로시간) 근로시간은 매주 월요일부터 금요일까지 10:00~19:00로 하며, 휴게시간은 근로시간 중 30분으로 한다.
-제4조(임금) 시급은 10,000원으로 하며, 매월 10일 근로자 명의 계좌로 지급한다.
+제4조(임금) 시급은 10,000원으로 하며, 매월 10일 근로자 명의 계좌로 지급한다. 수당 등 세부 임금 구성은 회사의 별도 임금 지급 기준에 따른다.
 제5조(연장근로) 연장근로에 대한 가산수당은 기본급에 포함된 것으로 본다.
 제6조(휴일) 주휴일은 매주 일요일로 한다.
 제7조(위약금) 근로자가 계약기간 중 퇴사하는 경우 교육비 명목으로 100만원을 배상한다.
@@ -268,10 +288,10 @@ const S1 = contract({
     },
     {
       id: 'a1e0c3b2-0007-4c1a-9a01-000000000007', code: 'MISSING_WAGE_COMPONENTS', category: 'MISSING', labels: ['임금'],
-      status: 'NEEDS_CONFIRMATION', hint: 'NEEDS_CONFIRMATION', presence: 'UNCLEAR', clause: 'c0005', quote: '시급은 10,000원으로 하며',
-      explanation: '적용 시점과 법령 근거를 검증할 수 없어 판단을 보류합니다.',
-      ruleExplanation: '임금 구성 항목의 명시 여부를 확인해야 합니다. 시급 외에 주휴수당 등 수당이 포함되는지 확인이 필요합니다.',
-      info: ['주휴수당을 따로 지급하는지'],
+      // 계약서가 '별도 임금 지급 기준'을 참조만 하고 내용은 없어 기재 여부가 불명확한 경우
+      status: 'NEEDS_CONFIRMATION', hint: 'NEEDS_CONFIRMATION', presence: 'UNCLEAR',
+      explanation: '계약서 기재 여부를 확인하지 못했습니다.',
+      ruleExplanation: '임금 구성 항목의 명시 여부를 확인해야 합니다.',
       laws: [LAW.art17],
     },
     {
