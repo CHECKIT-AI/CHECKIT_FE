@@ -29,8 +29,8 @@ npm run dev
 | `/` | 홈: 서비스 소개, 계약서 올리기(PDF 1개 또는 JPG·PNG·HEIC 최대 10장) | 동작 |
 | `/login` | 로그인: 카카오·구글 | API 연결 |
 | `/auth/complete` | 소셜 로그인 완료 처리 | API 연결 |
-| `/review` | ① 읽어온 글자 확인: 원본과 줄 단위로 비교·수정<br>② 개인정보 가리기·동의 | 동작 (저장 연결 전) |
-| `/reports` | 내 리포트: 목록·결과 요약·삭제 | API 연결 |
+| `/review` | ① 읽어온 글자 확인: 원본과 줄 단위로 비교·수정<br>② 개인정보 가리기·동의 → 저장 | API 연결 |
+| `/reports` | 내 리포트: 목록·결과 요약·삭제 | API 연결 (실제 삭제 확인) |
 | `/reports/:id` | 점검 리포트: 항목·근거 법령·원문 강조 | API 연결 |
 
 로그인은 필수입니다. 비로그인 상태에서 파일 올리기를 누르면 파일을 고르기 전에 로그인 화면으로 보냅니다. 소셜 로그인은 외부 사이트를 거쳐 돌아오므로 고른 파일이 사라지기 때문입니다.
@@ -39,13 +39,14 @@ npm run dev
 
 ```text
 계약서 올리기 → 글자 읽기(브라우저) → 원본과 비교·수정 → 개인정보 가리기·동의 → 저장 → 분석 → 리포트
-     ✅               ✅                    ✅                     ✅              예정    예정    ✅
+     ✅               ✅                    ✅                     ✅              ✅     예정    ✅
 ```
 
-- **원본 파일은 서버로 보내지 않습니다.** 브라우저에서 글자를 읽고, 사용자가 확인하고 개인정보를 가린 텍스트만 `POST /api/contracts`로 저장합니다(연결 예정).
+- **원본 파일은 서버로 보내지 않습니다.** 브라우저에서 글자를 읽고, 사용자가 확인하고 개인정보를 가린 텍스트만 `POST /api/contracts`로 저장합니다.
 - 확인 화면은 한 줄씩 보여주고, 줄을 누르면 원본에서 위치를 강조합니다. 흐리게 읽힌 줄은 노란색으로 표시하고 [맞아요]로 확인하거나 고쳐야 페이지 확인을 마칠 수 있습니다. 페이지 인식 신뢰도가 85% 미만이면 다시 찍어 달라고 안내합니다.
 - 글자 확인과 개인정보 가리기는 같은 화면(`/review`)의 두 단계라서, 오가도 고친 내용과 가림이 그대로 남습니다.
 - 고른 파일과 확인 중인 내용은 메모리에만 있어 새로고침하면 사라집니다(새로고침 전에 경고).
+- 저장한 계약서는 아직 분석 전이라 리포트 화면에 "아직 점검 결과가 없어요"가 나옵니다. 분석 시작 화면은 다음 작업입니다.
 
 ## 글자 인식 (OCR)
 
@@ -105,6 +106,54 @@ bash scripts/paddle-models.sh
 - 규칙 기반이라 이름표 없이 문장 속에 나오는 이름·주소는 놓칠 수 있습니다. 그래서 마지막 확인을 사용자에게 받습니다.
 - 페이지를 이은 전체 길이는 백엔드 한도(30,000자)를 넘지 않게 검사합니다.
 
+## 저장과 삭제
+
+### 저장 (`POST /api/contracts`)
+
+개인정보 가리기에서 확인 목록과 Gemini 전송 안내를 모두 체크하고 **[다음: 저장하고 점검 준비]**를 누르면 저장합니다.
+
+- 보내는 것: 가린 페이지별 텍스트, 파일 종류(`PDF`·`IMAGES`), 동의 2개(`privacy_confirmed`, `gemini_notice_acknowledged`). **원본 파일은 보내지 않습니다.**
+- 성공하면 해당 리포트(`/reports/{id}`)로 이동하고 "계약서를 저장했어요"를 보여줍니다. 뒤로 가기로 확인 화면에 돌아오지 않게 해서 같은 계약서가 두 번 저장되지 않게 합니다.
+- 저장하는 동안 버튼을 막고, 실패하면 화면(가림·체크)을 그대로 두고 안내합니다(`src/api/contracts.ts`의 `saveErrorMessage`).
+
+| 백엔드 오류 | 안내 |
+| --- | --- |
+| `422 PERSONAL_DATA_DETECTED` | 주민등록번호·휴대전화·이메일로 보이는 글자가 남아 있으니 가려 달라 |
+| `422 ANALYSIS_INPUT_LIMIT` | 너무 길거나 조항이 많으니 필요 없는 부분을 지워 달라 |
+| `422 INVALID_INPUT`, `413` | 형식 오류·너무 큼 |
+| `429 RATE_LIMITED` | 저장 요청이 너무 잦으니(분당 10회) 잠시 뒤 다시 |
+| `401` | 로그인이 풀렸으니 다시 로그인 |
+| `503`, 연결 실패 | 잠시 후 다시 |
+
+저장하면 **팀 공용 Supabase DB**에 아래 3개 행이 생깁니다(`CHECKIT_BE app/contracts.py`).
+
+| 테이블 (`checkit` 스키마) | 내용 |
+| --- | --- |
+| `contracts` | 계약서 1건 (사용자 ID, 종류, PDF·사진 여부, 만든 시각) |
+| `file_generations` | 입력 묶음 기록 |
+| `text_revisions` | 가린 계약서 텍스트 전체(`content`), 페이지 범위, 확인 시각 |
+
+### 삭제 (`DELETE /api/contracts/{id}`)
+
+- 내 리포트 목록 카드의 **삭제** → 확인 창(**영구 삭제**, 처음 초점은 [취소]) → 삭제하면 카드가 목록에서 빠집니다.
+- 백엔드는 내 계약서만 지우고, 표시만 남기는 게 아니라 **행과 텍스트·분석 결과를 완전히 지웁니다.** 이미 지워진 계약서(404)는 지워진 것으로 처리합니다.
+- 2026-11-18 실제 계약서로 저장 → 목록 표시 → 삭제 → DB에서 사라진 것까지 확인했습니다.
+
+### Supabase 대시보드에서 보기
+
+- **Table Editor**에서 왼쪽 위 스키마를 `public`에서 **`checkit`**으로 바꾸면 `contracts`, `text_revisions` 등이 보입니다.
+- 내 구글 계정의 계약서와 저장된 텍스트만 보려면 **SQL Editor**에서 조회합니다(읽기만 함).
+
+  ```sql
+  select c.id, c.input_kind, c.created_at, t.content
+  from checkit.contracts c
+  join checkit.auth_identities i on i.user_id = c.user_id and i.provider = 'GOOGLE'
+  left join checkit.text_revisions t on t.contract_id = c.id
+  order by c.created_at desc;
+  ```
+
+- 공용 DB이므로 대시보드에서는 보기만 하고, 테스트 계약서는 앱의 내 리포트에서 삭제합니다.
+
 ## 리포트 표시
 
 분석 결과(`current_result.items`)를 화면용으로 바꾸는 규칙은 `src/report/view.ts`에 있습니다.
@@ -142,6 +191,7 @@ API 호출은 `src/api/client.ts`가 처리합니다(쿠키 포함, POST·DELETE
 | API | 쓰는 곳 |
 | --- | --- |
 | `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/auth/oauth/{provider}/start` | 로그인 |
+| `POST /api/contracts` | 개인정보를 가린 계약서 텍스트 저장 |
 | `GET /api/contracts` | 내 리포트 목록 (카드의 결과 개수는 계약서별 상세를 한 번 더 불러와 채움) |
 | `GET /api/contracts/{id}` | 리포트 상세 |
 | `DELETE /api/contracts/{id}` | 리포트 삭제 |
@@ -167,7 +217,7 @@ CHECKIT_FE/
     ├── index.css              # 색상 변수·공통 스타일·버튼
     ├── api/
     │   ├── client.ts          # 공통 API 클라이언트 (쿠키·CSRF·오류)
-    │   └── contracts.ts       # 계약서 목록·상세·삭제
+    │   └── contracts.ts       # 계약서 저장·목록·상세·삭제, 저장 오류 문구
     ├── auth/                  # 로그인 상태(useAuth), 로그인 후 이동 경로 검증
     ├── types/api.ts           # 백엔드 요청·응답 타입
     ├── upload/
@@ -199,8 +249,8 @@ CHECKIT_FE/
 
 ## 남은 작업
 
-- 계약서 저장(`POST /api/contracts`) 연결
-- 분석 조건 입력·분석 진행 화면(`POST/GET /api/analysis/contracts/{id}/jobs`)
+- 분석 시작·조건 입력·진행 화면(`POST/GET /api/analysis/contracts/{id}/jobs`). 결과 없는 리포트에 [점검 시작하기]를 둡니다.
+- 리포트 상세 화면에서도 삭제
 - 로그인 만료(401) 처리, 로그인 확인 중 "불러오는 중" 표시
 - 확인 화면: 다른 파일로 갈 때 경고, 파일 오류일 때 [다시 읽기] 숨기기
 - 배포 시 PaddleOCR 모델 파일 호스팅
