@@ -1,0 +1,291 @@
+/* 분석 시작·진행 */
+
+.analysis {
+  padding-bottom: 56px;
+}
+
+.analysis-head {
+  padding: 24px 0 16px;
+}
+
+.analysis-head h1 {
+  margin: 6px 0;
+  font-size: 24px;
+  letter-spacing: -0.4px;
+}
+
+.analysis-head p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--ink2);
+  word-break: keep-all;
+}
+
+.analysis-head .back-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.analysis-mock {
+  color: var(--amber);
+}
+
+.analysis-card {
+  max-width: 640px;
+  padding: 24px;
+}
+
+.analysis-card h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.analysis-lead {
+  margin: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink2);
+  word-break: keep-all;
+}
+
+.saved-text {
+  margin-top: 20px;
+  font-size: 14px;
+}
+
+.saved-text summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.saved-text pre {
+  margin: 10px 0 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* 조건 입력 */
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.field input,
+.field select {
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.field input[type='date'] {
+  min-width: 200px;
+}
+
+.field input[type='number'] {
+  width: 140px;
+}
+
+.field select {
+  min-width: 240px;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 3px solid var(--accent-line);
+  outline-offset: 1px;
+}
+
+.field__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--ink2);
+}
+
+.field__help {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  word-break: keep-all;
+}
+
+.field__help q {
+  color: var(--ink2);
+  font-weight: 600;
+}
+
+.field__warn {
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.analysis-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  word-break: keep-all;
+}
+
+.analysis-notice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-d);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.analysis-notice strong {
+  display: block;
+}
+
+.analysis-error {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.analysis-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.analysis-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 진행 */
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.progress-time {
+  font-size: 13px;
+  color: var(--muted2);
+  font-variant-numeric: tabular-nums;
+}
+
+.steps-v {
+  list-style: none;
+  margin: 18px 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-v {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.step-v b {
+  display: block;
+}
+
+.step-v small {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.step-v__mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--line2);
+  color: var(--muted2);
+}
+
+.step-v--done .step-v__mark {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.step-v--now {
+  background: var(--accent-soft);
+}
+
+.step-v--now .step-v__mark {
+  background: #fff;
+  color: var(--accent);
+}
+
+.step-v--todo {
+  color: var(--muted2);
+}
+
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-line);
+  border-top-color: var(--accent);
+  animation: an-spin 0.9s linear infinite;
+}
+
+@keyframes an-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-sm {
+    animation-duration: 3s;
+  }
+}

@@ -13,6 +13,7 @@ import type {
   Citation,
   ContractDetailResponse,
   DocumentPresence,
+  JobAnalysisResult,
   TextRevision,
 } from '../types/api'
 import { CHECK_STATUSES } from '../types/api'
@@ -410,7 +411,38 @@ const S2 = contract({
   ]),
 })
 
+/* ───────── 예시 3: 저장만 하고 아직 분석하지 않은 계약서 (분석 시작·진행 화면 확인용) ───────── */
+
+const S3: ContractDetailResponse = {
+  ...S1,
+  contract: { ...S1.contract, id: 'sample-3', created_at: '2026-11-19T02:10:00Z', updated_at: '2026-11-19T02:10:00Z' },
+  current_result: null,
+}
+
 export const SAMPLE_CONTRACTS: Record<string, ContractDetailResponse> = {
   'sample-1': S1,
   'sample-2': S2,
+  'sample-3': S3,
+}
+
+/** 분석 진행 상태 조회(GET .../jobs/{id})가 끝났을 때 주는 result 형식으로 바꿉니다. */
+function asJobResult(c: ContractDetailResponse): JobAnalysisResult {
+  const r = c.current_result!
+  return {
+    id: r.id,
+    summary: r.summary,
+    completed_at: r.completed_at,
+    items: r.items,
+    citations: r.citations,
+    // 화면에서 쓰지 않는 버전 정보라 예시 값입니다.
+    model_versions: { gemini_model: 'gemini-2.5-flash', classifier_model: 'checkit-clause-multilabel', classifier_revision: 'hard-v1' },
+    prompt_version: 'employment_review_v8',
+    corpus_version: 'labor-law-2026-01',
+    rule_version: 'employment_rules_v2',
+  }
+}
+
+/** 예시 계약서에서 [점검 시작]을 누르면 돌려줄 분석 결과. sample-3은 sample-1과 같은 계약서라 같은 결과를 씁니다. */
+export const SAMPLE_JOB_RESULTS: Record<string, JobAnalysisResult> = {
+  'sample-3': asJobResult(S1),
 }

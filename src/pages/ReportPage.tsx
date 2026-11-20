@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useParams } from 'react-router'
 import { ApiError } from '../api/client'
 import { getContract } from '../api/contracts'
@@ -25,7 +25,16 @@ import {
   type GroupKey,
   type Tone,
 } from '../report/view'
-import type { CheckItem, ContractDetailResponse, TextRevision } from '../types/api'
+import { CHECK_STATUSES } from '../types/api'
+import type {
+  CheckItem,
+  CheckStatus,
+  ContractAnalysisResult,
+  ContractDetailResponse,
+  JobAnalysisResult,
+  TextRevision,
+} from '../types/api'
+import AnalysisPanel from './AnalysisPanel'
 import './ReportPage.css'
 
 type Range = { start: number; end: number }
@@ -258,7 +267,14 @@ function ReportView({ reportId }: { reportId: string }) {
   // 예시 리포트(sample-*)는 프론트 예시 데이터, 그 외에는 GET /api/contracts/{reportId}
   const sample = SAMPLE_CONTRACTS[reportId]
   const [fetched, setFetched] = useState<DetailState>({ status: 'loading' })
-  const state: DetailState = sample ? { status: 'ready', detail: sample } : fetched
+  /** 예시 계약서를 화면에서 분석했을 때의 결과 (서버에 저장되지 않음) */
+  const [mockResult, setMockResult] = useState<ContractAnalysisResult | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const baseState: DetailState = sample ? { status: 'ready', detail: sample } : fetched
+  const state: DetailState =
+    baseState.status === 'ready' && mockResult
+      ? { status: 'ready', detail: { ...baseState.detail, current_result: mockResult } }
+      : baseState
   const [pickedId, setPickedId] = useState<string | null>(null)
   const [showPresent, setShowPresent] = useState(false)
 
@@ -276,7 +292,21 @@ function ReportView({ reportId }: { reportId: string }) {
     return () => {
       cancelled = true
     }
-  }, [reportId, sample, user])
+  }, [reportId, sample, user, reloadKey])
+
+  // 분석이 끝나면: 예시는 받은 결과를 그대로 보여주고, 실제 계약서는 상세를 다시 불러옵니다(저장된 결과).
+  const handleFinished = useCallback(
+    (result: JobAnalysisResult) => {
+      if (sample) {
+        setMockResult(toContractResult(result, sample))
+      } else {
+        setReloadKey((k) => k + 1)
+      }
+      setPickedId(null)
+      window.scrollTo({ top: 0 })
+    },
+    [sample],
+  )
 
   const detail = state.status === 'ready' ? state.detail : null
   const items = detail?.current_result?.items ?? []
@@ -293,13 +323,7 @@ function ReportView({ reportId }: { reportId: string }) {
     return <ReportMessage title="리포트를 찾을 수 없어요" sub="삭제되었거나 다른 계정의 리포트일 수 있어요." />
 
   const result = detail.current_result
-  if (!result) {
-    return justSaved ? (
-      <ReportMessage title="계약서를 저장했어요" sub="분석을 시작하면 이곳에서 점검 결과를 볼 수 있어요. 분석 시작은 다음 작업에서 연결돼요." />
-    ) : (
-      <ReportMessage title="아직 점검 결과가 없어요" sub="분석이 끝나면 이곳에서 결과를 볼 수 있어요." />
-    )
-  }
+  if (!result) return <AnalysisPanel detail={detail} justSaved={justSaved} onFinished={handleFinished} />
 
   const selected = items.find((i) => i.id === selectedId) ?? null
   const counts = groupCounts(items)
@@ -397,6 +421,24 @@ function ReportView({ reportId }: { reportId: string }) {
 function ReportPage() {
   const { reportId = '' } = useParams()
   return <ReportView key={reportId} reportId={reportId} />
+}
+
+/** 분석 진행 상태 조회의 result를 계약서 상세의 current_result 형식으로 바꿉니다. (예시 계약서용) */
+function toContractResult(r: JobAnalysisResult, detail: ContractDetailResponse): ContractAnalysisResult {
+  const counts = Object.fromEntries(CHECK_STATUSES.map((s) => [s, 0])) as Record<CheckStatus, number>
+  for (const it of r.items) counts[it.status] += 1
+  return {
+    id: r.id,
+    summary: r.summary,
+    completed_at: r.completed_at,
+    items: r.items,
+    citations: r.citations,
+    input_revision_id: detail.text?.id ?? '',
+    file_generation_id: detail.contract.current_file_generation_id ?? '',
+    counts,
+    is_current_generation: true,
+    is_current_revision: true,
+  }
 }
 
 export default ReportPage
