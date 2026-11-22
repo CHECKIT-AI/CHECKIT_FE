@@ -1,7 +1,9 @@
 import { Route, Routes } from 'react-router'
+import { ExpiredBanner } from './components/AuthGate'
 import Footer from './components/Footer'
 import Header from './components/Header'
 import AuthCompletePage from './pages/AuthCompletePage'
+import EmailVerifyPage from './pages/EmailVerifyPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import MyReportsPage from './pages/MyReportsPage'
@@ -12,11 +14,13 @@ function App() {
   return (
     <>
       <Header />
+      <ExpiredBanner />
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/complete" element={<AuthCompletePage />} />
+          <Route path="/auth/verify" element={<EmailVerifyPage />} />
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/reports" element={<MyReportsPage />} />
           <Route path="/reports/:reportId" element={<ReportPage />} />

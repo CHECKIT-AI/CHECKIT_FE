@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { deleteErrorMessage, getContract, listContracts, removeContract } from '../api/contracts'
 import { useAuth } from '../auth/useAuth'
+import { AuthLoading } from '../components/AuthGate'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { DocLinesIcon, LockIcon } from '../components/icons'
 import { SAMPLE_REPORTS } from '../mocks/reports'
@@ -173,7 +174,7 @@ function MyReportsPage() {
     setDeletedNote(true)
   }
 
-  if (loading) return null
+  if (loading) return <AuthLoading />
 
   if (!user) {
     return (

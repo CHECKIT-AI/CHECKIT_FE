@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useParams } from 'react-router'
 import { ApiError } from '../api/client'
 import { getContract } from '../api/contracts'
 import { useAuth } from '../auth/useAuth'
+import { AuthLoading } from '../components/AuthGate'
 import DeleteReportButton from '../components/DeleteReportButton'
 import { BookIcon, ChatIcon } from '../components/icons'
 import { SAMPLE_CONTRACTS } from '../mocks/analysis'
@@ -262,7 +263,7 @@ type DetailState =
   | { status: 'ready'; detail: ContractDetailResponse }
 
 function ReportView({ reportId }: { reportId: string }) {
-  const { user, loading } = useAuth()
+  const { user, loading, expired } = useAuth()
   // 계약서를 막 저장하고 들어온 경우 (ReviewPage가 state로 알려줌)
   const justSaved = (useLocation().state as { saved?: boolean } | null)?.saved === true
   // 예시 리포트(sample-*)는 프론트 예시 데이터, 그 외에는 GET /api/contracts/{reportId}
@@ -315,8 +316,11 @@ function ReportView({ reportId }: { reportId: string }) {
   const selectedId = pickedId ?? GROUPS.flatMap((g) => items.filter((i) => groupOf(i) === g.key))[0]?.id ?? null
   const setSelectedId = setPickedId
 
-  if (loading) return null
-  if (!user) return <Navigate to="/login" replace state={{ reason: 'reports', returnTo: `/reports/${reportId}` }} />
+  if (loading) return <AuthLoading />
+  if (!user)
+    return (
+      <Navigate to="/login" replace state={{ reason: expired ? 'expired' : 'reports', returnTo: `/reports/${reportId}` }} />
+    )
   if (state.status === 'loading') return <ReportMessage title="리포트를 불러오는 중이에요" sub="잠시만 기다려 주세요." />
   if (state.status === 'error')
     return <ReportMessage title="리포트를 불러오지 못했어요" sub="잠시 후 다시 시도해 주세요." />

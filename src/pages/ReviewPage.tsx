@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
+import { AuthLoading } from '../components/AuthGate'
 import { CheckIcon } from '../components/icons'
 import { createContract, saveErrorMessage } from '../api/contracts'
 import { clearPendingUpload, getPendingUpload } from '../upload/draft'
@@ -79,11 +80,12 @@ function sourceLabel(p: PageDraft) {
 }
 
 function ReviewPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, expired } = useAuth()
   const [selection] = useState(getPendingUpload)
 
-  if (loading) return null
-  if (!user) return <Navigate to="/login" replace state={{ reason: 'upload', returnTo: '/' }} />
+  if (loading) return <AuthLoading />
+  // 쓰던 중 로그인이 만료되면 고친 내용을 바로 날리지 않고, 위쪽 안내(ExpiredBanner)로 다시 로그인하게 합니다.
+  if (!user && !expired) return <Navigate to="/login" replace state={{ reason: 'upload', returnTo: '/' }} />
   if (!selection) {
     return (
       <section className="wrap review-empty">

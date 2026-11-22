@@ -44,6 +44,17 @@ async function refreshCsrf(): Promise<string> {
   return csrfToken
 }
 
+/**
+ * 로그인한 채 쓰던 중 서버가 401(로그인 필요)을 돌려주면 부릅니다. AuthProvider가 등록합니다.
+ * 로그인 상태 확인(/api/auth/me)과 로그인 요청 자체의 401은 '만료'가 아니므로 제외합니다.
+ */
+let onUnauthorized: (() => void) | null = null
+const NOT_EXPIRY = ['/api/auth/me', '/api/auth/login']
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler
+}
+
 /** 로그인·로그아웃처럼 세션이 바뀐 뒤 호출합니다. */
 export function resetCsrf() {
   csrfToken = null
@@ -72,6 +83,7 @@ export async function api<T>(path: string, { method = 'GET', body }: RequestOpti
       res = await send()
     }
   }
+  if (res.status === 401 && !NOT_EXPIRY.includes(path)) onUnauthorized?.()
   if (!res.ok) throw await toApiError(res)
   if (res.status === 204) return undefined as T
 

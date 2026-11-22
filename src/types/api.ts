@@ -49,6 +49,13 @@ export type OAuthStartResponse = { authorization_url: string }
 export type EmailLoginRequest = { email: string; password: string }
 export type EmailLoginResponse = { user: User; csrf_token: string }
 
+/** POST /api/auth/signup (202), POST /api/auth/email-verification/resend (202) */
+export type SignupRequest = { email: string; password: string }
+export type AcceptedResponse = { message: string }
+
+/** POST /api/auth/email-verification/confirm */
+export type VerifyEmailResponse = { verified: true; login_required: true }
+
 /* ───────── 계약서 ───────── */
 
 export type InputKind = 'PDF' | 'IMAGES'

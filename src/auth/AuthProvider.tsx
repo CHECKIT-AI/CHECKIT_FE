@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, ApiError, resetCsrf } from '../api/client'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { emailLogin } from '../api/auth'
+import { api, ApiError, resetCsrf, setUnauthorizedHandler } from '../api/client'
 import type { MeResponse } from '../types/api'
 import { AuthContext, type User } from './authContext'
 
@@ -17,14 +18,34 @@ async function fetchMe(): Promise<User | null> {
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [expired, setExpired] = useState(false)
+  const userRef = useRef<User | null>(null)
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  const signedIn = useCallback((me: User | null) => {
+    setUser(me)
+    if (me) setExpired(false)
+  }, [])
 
   const refresh = useCallback(async () => {
     resetCsrf()
     const me = await fetchMe()
-    setUser(me)
+    signedIn(me)
     setLoading(false)
     return me
-  }, [])
+  }, [signedIn])
+
+  const loginWithEmail = useCallback(
+    async (email: string, password: string) => {
+      resetCsrf()
+      const { user: me } = await emailLogin(email, password) // 새 CSRF 토큰은 api()가 저장
+      signedIn(me)
+      return me
+    },
+    [signedIn],
+  )
 
   const logout = useCallback(async () => {
     try {
@@ -32,7 +53,19 @@ function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       resetCsrf()
       setUser(null)
+      setExpired(false)
     }
+  }, [])
+
+  // 쓰던 중 401을 받으면 로그인이 만료된 것으로 봅니다. (로그인한 상태였을 때만)
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (!userRef.current) return
+      resetCsrf()
+      setUser(null)
+      setExpired(true)
+    })
+    return () => setUnauthorizedHandler(null)
   }, [])
 
   useEffect(() => {
@@ -47,7 +80,10 @@ function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const value = useMemo(() => ({ user, loading, refresh, logout }), [user, loading, refresh, logout])
+  const value = useMemo(
+    () => ({ user, loading, expired, refresh, loginWithEmail, logout }),
+    [user, loading, expired, refresh, loginWithEmail, logout],
+  )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

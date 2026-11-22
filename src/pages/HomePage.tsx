@@ -15,6 +15,9 @@ const STEPS = [
   { title: '확인할 사항 정리', desc: '서명 전에 물어볼 내용을 질문 목록으로 정리해요.' },
 ]
 
+/** 로그인 확인이 끝나기 전에 눌렀을 때 (확인이 끝나면 저절로 사라짐) */
+const CHECKING = '로그인 상태를 확인하고 있어요.\n잠시 후 다시 시도해 주세요.'
+
 function HomePage() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
@@ -39,6 +42,7 @@ function HomePage() {
   const handleDropClick = (e: MouseEvent<HTMLLabelElement>) => {
     if (loading) {
       e.preventDefault()
+      setError(CHECKING)
       return
     }
     if (!user) {
@@ -60,7 +64,10 @@ function HomePage() {
   const handleDrop = (e: DragEvent<HTMLLabelElement>) => {
     e.preventDefault()
     setDragging(false)
-    if (loading) return
+    if (loading) {
+      setError(CHECKING)
+      return
+    }
     if (!user) {
       goLogin()
       return
@@ -127,7 +134,7 @@ function HomePage() {
             />
           </label>
 
-          {error && (
+          {error && !(error === CHECKING && !loading) && (
             <p className="upload-error" role="alert">
               {error}
             </p>
