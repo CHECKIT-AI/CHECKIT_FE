@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { COMMON, NEXT } from '../api/messages'
 import { safeReturnPath } from '../auth/returnPath'
 import { useAuth } from '../auth/useAuth'
 import './LoginPage.css'
@@ -9,14 +10,14 @@ import './LoginPage.css'
 //     /auth/complete#oauth_status=error&error_code=OAUTH_DENIED
 
 const ERROR_MESSAGES: Record<string, string> = {
-  OAUTH_DENIED: '로그인이 취소됐어요.',
-  INVALID_OAUTH_STATE: '로그인 요청이 만료됐거나 확인할 수 없어요. 다시 시도해 주세요.',
-  OAUTH_CODE_INVALID: '소셜 계정 정보를 확인하지 못했어요. 다시 시도해 주세요.',
-  OAUTH_EXCHANGE_FAILED: '소셜 계정 정보를 확인하지 못했어요. 다시 시도해 주세요.',
-  OAUTH_IDENTITY_INVALID: '소셜 계정 정보를 확인하지 못했어요. 다시 시도해 주세요.',
-  OAUTH_PROVIDER_UNAVAILABLE: '로그인 서비스에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.',
-  ACCOUNT_INACTIVE: '로그인할 수 없는 계정이에요.',
-  DATABASE_UNAVAILABLE: '서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.',
+  OAUTH_DENIED: '로그인을 취소했어요.\n다시 로그인하려면 아래 버튼을 눌러 주세요.',
+  INVALID_OAUTH_STATE: '로그인 요청이 만료됐어요.\n처음부터 다시 로그인해 주세요.',
+  OAUTH_CODE_INVALID: '소셜 계정 정보를 확인하지 못했어요.\n처음부터 다시 로그인해 주세요.',
+  OAUTH_EXCHANGE_FAILED: '소셜 계정 정보를 확인하지 못했어요.\n처음부터 다시 로그인해 주세요.',
+  OAUTH_IDENTITY_INVALID: '소셜 계정 정보를 확인하지 못했어요.\n처음부터 다시 로그인해 주세요.',
+  OAUTH_PROVIDER_UNAVAILABLE: `로그인 서비스에 연결하지 못했어요.\n${NEXT.retry}`,
+  ACCOUNT_INACTIVE: '로그인할 수 없는 계정이에요.\n다른 방법으로 로그인해 주세요.',
+  DATABASE_UNAVAILABLE: COMMON.server,
 }
 
 function readResult() {
@@ -25,7 +26,7 @@ function readResult() {
     return { error: null, returnPath: safeReturnPath(params.get('return_path')) }
   }
   const code = params.get('error_code') ?? ''
-  return { error: ERROR_MESSAGES[code] ?? '로그인하지 못했어요. 다시 시도해 주세요.', returnPath: '/' }
+  return { error: ERROR_MESSAGES[code] ?? COMMON.failed('로그인하지'), returnPath: '/' }
 }
 
 function AuthCompletePage() {
@@ -41,7 +42,7 @@ function AuthCompletePage() {
 
     refresh().then((me) => {
       if (me) navigate(result.returnPath, { replace: true })
-      else setError('로그인 정보를 확인하지 못했어요. 다시 시도해 주세요.')
+      else setError(`로그인 정보를 확인하지 못했어요.\n${NEXT.retry}`)
     })
   }, [refresh, navigate, result])
 
@@ -52,7 +53,7 @@ function AuthCompletePage() {
           <>
             <div>
               <h1>로그인하지 못했어요</h1>
-              <p className="login-card__sub">{error}</p>
+              <p className="login-card__sub login-card__sub--lines">{error}</p>
             </div>
             <Link to="/login" replace className="btn btn-primary btn-social">
               다시 로그인하기

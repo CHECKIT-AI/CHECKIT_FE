@@ -5,11 +5,13 @@ import {
   PASSWORD_MIN,
   loginErrorMessage,
   looksLikeEmail,
+  resendErrorMessage,
   resendVerification,
   signup,
   signupErrorMessage,
 } from '../api/auth'
 import { api, ApiError } from '../api/client'
+import { errorMessage } from '../api/messages'
 import { safeReturnPath } from '../auth/returnPath'
 import type { OAuthStartResponse } from '../types/api'
 import { useAuth } from '../auth/useAuth'
@@ -32,12 +34,9 @@ const SUBTITLE: Record<LoginReason | 'default', string> = {
 }
 
 function startErrorMessage(err: unknown) {
-  if (err instanceof ApiError) {
-    if (err.code === 'RATE_LIMITED') return '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.'
-    if (err.code === 'OAUTH_NOT_CONFIGURED' || err.status === 503)
-      return '지금은 소셜 로그인을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.'
-  }
-  return '로그인을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.'
+  return errorMessage(err, '로그인을 시작하지', {
+    OAUTH_NOT_CONFIGURED: '지금은 소셜 로그인을 쓸 수 없어요.\n이메일로 로그인하거나 잠시 후 다시 시도해 주세요.',
+  })
 }
 
 function LoginPage() {
@@ -136,7 +135,7 @@ function LoginPage() {
       await resendVerification(email.trim())
       setResent(true)
     } catch (err) {
-      setError(signupErrorMessage(err))
+      setError(resendErrorMessage(err))
     } finally {
       setPending(null)
     }
