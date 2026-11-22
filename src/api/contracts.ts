@@ -27,6 +27,29 @@ export function deleteContract(contractId: string) {
 }
 
 /**
+ * 화면에서 쓰는 삭제. 예시 리포트(sample-*)는 서버에 없으므로 API를 부르지 않고,
+ * 이미 지워진 기록(404)은 삭제된 것으로 봅니다.
+ */
+export async function removeContract(contractId: string) {
+  if (contractId.startsWith('sample-')) return
+  try {
+    await deleteContract(contractId)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return
+    throw err
+  }
+}
+
+/** 삭제 실패를 사용자에게 보여줄 문구로 바꿉니다. */
+export function deleteErrorMessage(err: unknown) {
+  if (err instanceof ApiError) {
+    if (err.code === 'RATE_LIMITED') return '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.'
+    if (err.status === 401) return '로그인이 만료됐어요. 다시 로그인한 뒤 시도해 주세요.'
+  }
+  return '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.'
+}
+
+/**
  * 확인·개인정보 가리기를 마친 텍스트 저장 — POST /api/contracts
  * 공용 DB에 계약서 기록이 생깁니다. 원본 파일은 보내지 않습니다.
  */

@@ -599,3 +599,10 @@
   margin: 0 0 8px;
   color: var(--muted);
 }
+
+.report-head__side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}

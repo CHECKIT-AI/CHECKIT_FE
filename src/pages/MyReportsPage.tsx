@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
-import { ApiError } from '../api/client'
-import { deleteContract, getContract, listContracts } from '../api/contracts'
+import { Link, useLocation, useNavigate } from 'react-router'
+import { deleteErrorMessage, getContract, listContracts, removeContract } from '../api/contracts'
 import { useAuth } from '../auth/useAuth'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { DocLinesIcon, LockIcon } from '../components/icons'
-import { isSampleId, SAMPLE_REPORTS } from '../mocks/reports'
+import { SAMPLE_REPORTS } from '../mocks/reports'
 import { toListItem, type ReportListItem } from '../report/list'
 import { formatDateTime } from '../report/view'
 import './MyReportsPage.css'
@@ -35,14 +34,6 @@ async function loadReports(onPartial: (reports: ReportListItem[]) => void): Prom
       ? toListItem(c, d.value.current_result)
       : { ...toListItem(c), result: 'unknown' as const }
   })
-}
-
-function deleteErrorMessage(err: unknown) {
-  if (err instanceof ApiError) {
-    if (err.code === 'RATE_LIMITED') return '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.'
-    if (err.status === 401) return '로그인이 만료됐어요. 다시 로그인한 뒤 시도해 주세요.'
-  }
-  return '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.'
 }
 
 /** 비로그인 상태 */
@@ -121,8 +112,18 @@ function ReportCard({ report, onDelete }: { report: ReportListItem; onDelete: ()
 
 function MyReportsPage() {
   const { user, loading } = useAuth()
+  // 리포트 상세에서 삭제하고 돌아온 경우 (DeleteReportButton이 state로 알려줌)
+  const deletedId = (useLocation().state as { deleted?: string } | null)?.deleted ?? null
+  const [deletedNote, setDeletedNote] = useState(deletedId !== null)
+  const navigate = useNavigate()
+  // 새로고침하면 안내가 다시 뜨지 않도록 주소 기록의 state를 비웁니다.
+  useEffect(() => {
+    if (deletedId) navigate('.', { replace: true, state: null })
+  }, [deletedId, navigate])
   const [list, setList] = useState<ListState>({ status: 'loading' })
-  const [samples, setSamples] = useState<ReportListItem[]>(SHOW_SAMPLES ? SAMPLE_REPORTS : [])
+  const [samples, setSamples] = useState<ReportListItem[]>(() =>
+    SHOW_SAMPLES ? SAMPLE_REPORTS.filter((r) => r.contract.id !== deletedId) : [],
+  )
   const [reloadKey, setReloadKey] = useState(0)
   const [target, setTarget] = useState<ReportListItem | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -160,19 +161,16 @@ function MyReportsPage() {
     setDeleting(true)
     setDeleteError(null)
     try {
-      // 예시 리포트는 서버에 없으므로 API를 부르지 않고 목록에서만 지웁니다.
-      if (!isSampleId(id)) await deleteContract(id)
+      await removeContract(id)
     } catch (err) {
-      // 이미 지워진 기록(404)은 삭제된 것으로 봅니다.
-      if (!(err instanceof ApiError && err.status === 404)) {
-        setDeleteError(deleteErrorMessage(err))
-        setDeleting(false)
-        return
-      }
+      setDeleteError(deleteErrorMessage(err))
+      setDeleting(false)
+      return
     }
     removeFromList(id)
     setDeleting(false)
     closeDialog()
+    setDeletedNote(true)
   }
 
   if (loading) return null
@@ -203,6 +201,12 @@ function MyReportsPage() {
           {list.status === 'ready' ? `점검한 계약서 ${reports.length}건` : '점검한 계약서를 불러오고 있어요'}
         </p>
       </div>
+
+      {deletedNote && (
+        <p className="list-done" role="status">
+          리포트를 삭제했어요.
+        </p>
+      )}
 
       {list.status === 'loading' && <p className="list-note">불러오는 중…</p>}
 

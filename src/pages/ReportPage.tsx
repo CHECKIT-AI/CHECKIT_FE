@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useParams } from 'react-router'
 import { ApiError } from '../api/client'
 import { getContract } from '../api/contracts'
 import { useAuth } from '../auth/useAuth'
+import DeleteReportButton from '../components/DeleteReportButton'
 import { BookIcon, ChatIcon } from '../components/icons'
 import { SAMPLE_CONTRACTS } from '../mocks/analysis'
 import {
@@ -340,13 +341,16 @@ function ReportView({ reportId }: { reportId: string }) {
             {toCheck > 0 ? `확인할 사항 ${toCheck}개` : '확인할 사항 없음'}
           </p>
         </div>
-        <div className="report-chips">
-          {GROUPS.filter((g) => g.key !== 'PRESENT').map((g) => (
-            <span key={g.key} className={`report-chip tone-${g.tone}`}>
-              {g.label}
-              <b>{counts[g.key]}</b>
-            </span>
-          ))}
+        <div className="report-head__side">
+          <div className="report-chips">
+            {GROUPS.filter((g) => g.key !== 'PRESENT').map((g) => (
+              <span key={g.key} className={`report-chip tone-${g.tone}`}>
+                {g.label}
+                <b>{counts[g.key]}</b>
+              </span>
+            ))}
+          </div>
+          <DeleteReportButton contractId={detail.contract.id} title="근로계약서" />
         </div>
       </div>
 

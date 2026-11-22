@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { jobFailure, startErrorMessage } from '../api/analysis'
 import { guessEffectiveDate, SUPPORTED_YEAR } from '../analysis/context'
 import { clearJobId, runnerFor, saveJobId, savedJobId } from '../analysis/runner'
+import DeleteReportButton from '../components/DeleteReportButton'
 import { CheckIcon } from '../components/icons'
 import type { ContractDetailResponse, JobAnalysisResult, JobStage, StartAnalysisRequest } from '../types/api'
 import { formatDateTime } from '../report/view'
@@ -121,9 +122,13 @@ function AnalysisPanel({ detail, justSaved, onFinished }: Props) {
   return (
     <section className="wrap analysis">
       <div className="analysis-head">
-        <Link to="/reports" className="back-link">
-          ← 내 리포트
-        </Link>
+        <div className="analysis-head__top">
+          <Link to="/reports" className="back-link">
+            ← 내 리포트
+          </Link>
+          {/* 분석 중에는 지우지 않도록 숨깁니다. */}
+          {phase.kind !== 'running' && <DeleteReportButton contractId={contractId} title="근로계약서" />}
+        </div>
         <h1>{phase.kind === 'running' ? '계약서를 점검하고 있어요' : '아직 점검하지 않은 계약서예요'}</h1>
         <p>
           {justSaved && phase.kind === 'intro' && (
