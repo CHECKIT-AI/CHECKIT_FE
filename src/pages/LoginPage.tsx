@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import {
   PASSWORD_MAX,
@@ -16,7 +16,8 @@ import { safeReturnPath } from '../auth/returnPath'
 import type { OAuthStartResponse } from '../types/api'
 import { useAuth } from '../auth/useAuth'
 import { AuthLoading } from '../components/AuthGate'
-import { GoogleIcon, KakaoIcon } from '../components/icons'
+import { CheckIcon, GoogleIcon, KakaoIcon } from '../components/icons'
+import PasswordField from '../components/PasswordField'
 import './LoginPage.css'
 
 type LoginReason = 'upload' | 'analyze' | 'reports' | 'expired'
@@ -37,6 +38,17 @@ function startErrorMessage(err: unknown) {
   return errorMessage(err, '로그인을 시작하지', {
     OAUTH_NOT_CONFIGURED: '지금은 소셜 로그인을 쓸 수 없어요.\n이메일로 로그인하거나 잠시 후 다시 시도해 주세요.',
   })
+}
+
+/** 비밀번호 조건 한 줄: 맞으면 초록 체크, 틀렸다고 확실하면(bad) 빨강, 아직이면 회색 */
+function Rule({ ok, bad = false, children }: { ok: boolean; bad?: boolean; children: ReactNode }) {
+  return (
+    <li className={`pw-rule ${ok ? 'is-ok' : bad ? 'is-bad' : ''}`}>
+      {ok ? <CheckIcon size={14} /> : <span className="pw-rule__dot" aria-hidden="true" />}
+      {children}
+      <span className="sr-only">{ok ? ' (충족)' : ' (미충족)'}</span>
+    </li>
+  )
 }
 
 function LoginPage() {
@@ -232,28 +244,37 @@ function LoginPage() {
               placeholder="name@example.com"
             />
           </label>
-          <label className="login-form__field">
-            <span>비밀번호</span>
-            <input
-              type="password"
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              maxLength={PASSWORD_MAX}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            {isSignup && <small>{PASSWORD_MIN}자 이상으로 정해 주세요.</small>}
-          </label>
+          <PasswordField
+            label="비밀번호"
+            value={password}
+            onChange={setPassword}
+            autoComplete={isSignup ? 'new-password' : 'current-password'}
+            maxLength={PASSWORD_MAX}
+          >
+            {isSignup && (
+              <ul className="pw-rules" aria-live="polite">
+                <Rule ok={password.length >= PASSWORD_MIN}>
+                  {PASSWORD_MIN}자 이상{password ? ` (지금 ${password.length}자)` : ''}
+                </Rule>
+              </ul>
+            )}
+          </PasswordField>
           {isSignup && (
-            <label className="login-form__field">
-              <span>비밀번호 확인</span>
-              <input
-                type="password"
-                autoComplete="new-password"
-                maxLength={PASSWORD_MAX}
-                value={password2}
-                onChange={(e) => setPassword2(e.target.value)}
-              />
-            </label>
+            <PasswordField
+              label="비밀번호 확인"
+              value={password2}
+              onChange={setPassword2}
+              autoComplete="new-password"
+              maxLength={PASSWORD_MAX}
+            >
+              {password2 && (
+                <ul className="pw-rules" aria-live="polite">
+                  <Rule ok={password === password2} bad={password !== password2}>
+                    {password === password2 ? '비밀번호가 일치해요' : '비밀번호가 일치하지 않아요'}
+                  </Rule>
+                </ul>
+              )}
+            </PasswordField>
           )}
 
           {error && (

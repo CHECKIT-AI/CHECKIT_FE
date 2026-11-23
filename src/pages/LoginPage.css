@@ -183,3 +183,85 @@
   white-space: pre-line;
   line-height: 1.6;
 }
+
+/* 비밀번호 입력칸 */
+.pw {
+  position: relative;
+  display: flex;
+}
+
+.pw input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 48px;
+}
+
+.pw__toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pw__toggle:hover {
+  background: var(--line2);
+  color: var(--ink);
+}
+
+.pw__toggle:focus-visible {
+  outline: 3px solid var(--accent-line);
+}
+
+.login-form__field .pw__caps {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.pw-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pw-rule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.pw-rule.is-ok {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.pw-rule.is-bad {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.pw-rule__dot {
+  width: 14px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.pw-rule__dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
