@@ -4,7 +4,7 @@
 // OCR은 PaddleOCR(ONNX)을 브라우저에서 돌립니다. (src/upload/paddle/)
 
 import type { InputKind } from '../types/api'
-import { OcrError } from './errors'
+import { fileError } from './errors'
 import { heicToJpeg, isHeicName, looksLikeHeic } from './heic'
 
 /** 백엔드 제한: 페이지 1~10개, 페이지당 20,000자 (app/contracts.py, app/analysis.py) */
@@ -92,7 +92,7 @@ export async function extractPages(
   const recognize = async (image: HTMLCanvasElement | File) => {
     const { paddleRecognize } = await import('./paddle/client')
     const bitmap = await createImageBitmap(image).catch(() => {
-      throw new OcrError('이미지를 열지 못했어요.\n파일이 손상되었을 수 있어요.\n다른 파일로 다시 올려 주세요.')
+      throw fileError('이미지를 열지 못했어요.\n파일이 손상되었을 수 있어요.\n다른 파일로 다시 올려 주세요.')
     })
     if (signal.aborted) bitmap.close()
     checkCancelled()
@@ -124,10 +124,10 @@ export async function extractPages(
       })
       signal.addEventListener('abort', () => void task.destroy(), { once: true })
       const pdf = await task.promise.catch((e: unknown) => {
-        throw new OcrError(pdfErrorMessage(e))
+        throw fileError(pdfErrorMessage(e))
       })
       if (pdf.numPages > MAX_PAGES) {
-        throw new OcrError(`PDF가 너무 길어요. (${pdf.numPages}페이지)\n최대 ${MAX_PAGES}페이지까지 점검할 수 있어요.`)
+        throw fileError(`PDF가 너무 길어요. (${pdf.numPages}페이지)\n최대 ${MAX_PAGES}페이지까지 점검할 수 있어요.`)
       }
       for (let n = 1; n <= pdf.numPages; n++) {
         checkCancelled()
@@ -163,7 +163,7 @@ export async function extractPages(
           onProgress({ ...current, ratio: null, label: '아이폰 사진(HEIC)을 JPG로 바꾸는 중' })
           file = await heicToJpeg(original).catch((e: unknown) => {
             console.error('[HEIC]', e)
-            throw new OcrError(
+            throw fileError(
               [
                 `'${original.name}' 사진(HEIC)을 바꾸지 못했어요.`,
                 '파일이 손상되었을 수 있어요.',
@@ -175,7 +175,7 @@ export async function extractPages(
         }
         const previewUrl = URL.createObjectURL(file)
         const bitmap = await createImageBitmap(file).catch(() => {
-          throw new OcrError(imageErrorMessage(file))
+          throw fileError(imageErrorMessage(file))
         })
         const size = { width: bitmap.width, height: bitmap.height }
         bitmap.close()

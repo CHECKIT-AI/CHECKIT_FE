@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type
 import { Link, Navigate, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { AuthLoading } from '../components/AuthGate'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { CheckIcon } from '../components/icons'
 import { createContract, saveErrorMessage } from '../api/contracts'
 import { clearPendingUpload, getPendingUpload } from '../upload/draft'
@@ -39,7 +40,7 @@ type PageDraft = Omit<ExtractedPage, 'lines'> & {
 
 type Phase =
   | { kind: 'reading'; progress: OcrProgress | null }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; retry: boolean }
   | { kind: 'ready' }
 
 const ZOOMS = [100, 150, 200, 300]
@@ -114,6 +115,8 @@ function Review({ selection }: { selection: UploadSelection }) {
   const [privacy, setPrivacy] = useState<{ key: string; pages: PageText[]; masks: Mask[] } | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  /** [다른 파일 올리기] 확인 창 */
+  const [leaving, setLeaving] = useState(false)
   const navigate = useNavigate()
   const inputs = useRef(new Map<number, HTMLTextAreaElement>())
   /** 줄을 나누거나 합친 뒤 커서를 옮길 위치 */
@@ -147,6 +150,8 @@ function Review({ selection }: { selection: UploadSelection }) {
             e instanceof OcrError
               ? e.message
               : '글자를 읽는 중에 문제가 생겼어요.\n[다시 읽기]를 눌러 보고, 그래도 안 되면\n파일이 손상되지 않았는지, JPG·PNG·PDF가 맞는지 확인해 주세요.',
+          // 파일 자체의 문제는 다시 읽어도 같으므로 [다시 읽기]를 보여주지 않습니다.
+          retry: e instanceof OcrError ? e.retry : true,
         })
       })
     return () => {
@@ -218,19 +223,21 @@ function Review({ selection }: { selection: UploadSelection }) {
           ))}
         </div>
         <div className="review-empty__actions">
-          <Link to="/" className="btn btn-ghost">
+          <Link to="/" className={`btn ${phase.retry ? 'btn-ghost' : 'btn-primary'}`}>
             다른 파일 올리기
           </Link>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setPhase({ kind: 'reading', progress: null })
-              setAttempt((n) => n + 1)
-            }}
-          >
-            다시 읽기
-          </button>
+          {phase.retry && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setPhase({ kind: 'reading', progress: null })
+                setAttempt((n) => n + 1)
+              }}
+            >
+              다시 읽기
+            </button>
+          )}
         </div>
       </section>
     )
@@ -562,14 +569,36 @@ function Review({ selection }: { selection: UploadSelection }) {
           </p>
         )}
         <div className="review-foot__actions">
-          <Link to="/" className="btn btn-ghost">
+          <button type="button" className="btn btn-ghost" onClick={() => setLeaving(true)}>
             다른 파일 올리기
-          </Link>
+          </button>
           <button type="button" className="btn btn-primary" onClick={handleNext}>
             다음: 개인정보 가리기
           </button>
         </div>
       </div>
+
+      {leaving && (
+        <ConfirmDialog
+          title="다른 파일을 올릴까요?"
+          confirmLabel="다른 파일 올리기"
+          danger
+          onConfirm={() => {
+            clearPendingUpload()
+            navigate('/')
+          }}
+          onCancel={() => setLeaving(false)}
+        >
+          <p>
+            지금 화면을 나가면 <strong>확인하고 고친 내용이 모두 사라져요.</strong>
+          </p>
+          <p>
+            {doneCount > 0
+              ? `확인을 마친 페이지 ${doneCount}개도 처음부터 다시 확인해야 해요.`
+              : '고친 내용은 저장되지 않고, 되돌릴 수 없어요.'}
+          </p>
+        </ConfirmDialog>
+      )}
     </section>
   )
 }
