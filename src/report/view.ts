@@ -87,13 +87,46 @@ export function statusMetaOf(item: CheckItem): { label: string; tone: Tone } {
   return STATUS_META[item.status]
 }
 
+/**
+ * AI가 추가로 찾은 항목(DISCOVERED_*)의 제목.
+ * 백엔드가 이름(check_code·labels)을 따로 주지 않아, 설명에 나온 쟁점 낱말로 제목을 정합니다.
+ * 위에서부터 먼저 맞는 것을 씁니다. (구체적인 쟁점을 앞에 둠)
+ */
+const DISCOVERED_TOPICS: [RegExp, string][] = [
+  [/위약|손해배상액.{0,10}예정|배상\s*약정/, '위약금·손해배상 예정'],
+  [/최저임금.{0,20}감액|수습.{0,30}(감액|80%|90%|지급)/, '수습기간 임금 감액'],
+  [/최저임금/, '최저임금 미달'],
+  [/(임금|급여).{0,15}(공제|차감)|전액\s*지급/, '임금에서 공제'],
+  [/퇴직금|퇴직급여/, '퇴직금 포기·분할 지급'],
+  [/해고\s*예고|서면\s*통지|해고|계약.{0,5}해지/, '해고 예고·서면 통지'],
+  [/연장.{0,10}(야간|휴일)?.{0,10}(수당|가산)|가산\s*수당|포괄\s*임금/, '연장·야간 수당'],
+  [/휴게/, '근로시간·휴게시간'],
+  [/(주|1일|하루).{0,10}(40|8|52)\s*시간|근로시간.{0,10}(초과|제한)/, '근로시간 한도'],
+  [/주휴/, '주휴일·주휴수당'],
+  [/연차/, '연차 유급휴가'],
+  [/근무\s*(장소|지)|업무.{0,10}(변경|지시)/, '근무 장소·업무 변경'],
+  [/사회\s*보험|4대\s*보험|고용보험|국민연금|건강보험/, '4대 보험'],
+  [/비밀\s*유지|경업|동종\s*업/, '퇴사 후 취업 제한'],
+]
+
+/** 조항 머리에서 이름을 꺼냅니다. 예) "8. 위약금: …" → "위약금", "제7조(임금) …" → "임금" */
+function clauseName(text: string | null) {
+  const t = text?.trim() ?? ''
+  const m = t.match(/^(?:\d+\s*[.)]\s*([^:：(\n]{1,15})[:：]|제\s*\d+\s*조\s*[(（]([^)）]{1,15})[)）])/)
+  return (m?.[1] ?? m?.[2])?.trim() || null
+}
+
 export function titleOf(item: CheckItem) {
   const known = CHECK_TITLE[item.check_code]
   if (known) return known
   const info = item.required_information[0] ?? item.rule_candidate?.required_information?.[0]
   if (isDiscovered(item)) {
-    const topic = item.labels[0] ?? info
-    return topic ? `${topic} 관련 확인 사항` : '추가로 발견된 확인 사항'
+    const topic = DISCOVERED_TOPICS.find(([re]) => re.test(item.explanation))?.[1]
+    if (topic) return topic
+    const name = clauseName(item.quoted_text)
+    if (name) return `${name} 조항`
+    const label = item.labels[0] ?? info
+    return label ? `${label} 관련 확인 사항` : '추가로 발견된 확인 사항'
   }
   return info ?? item.labels[0] ?? '점검 항목'
 }
