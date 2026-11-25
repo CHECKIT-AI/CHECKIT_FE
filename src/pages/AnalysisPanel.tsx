@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { jobFailure, startErrorMessage } from '../api/analysis'
-import { guessEffectiveDate, SUPPORTED_YEAR } from '../analysis/context'
+import { guessEffectiveDate, LAW_DATA_DATE, SUPPORTED_YEAR, todayISO } from '../analysis/context'
 import { clearJobId, runnerFor, saveJobId, savedJobId } from '../analysis/runner'
 import DeleteReportButton from '../components/DeleteReportButton'
 import { CheckIcon } from '../components/icons'
@@ -44,7 +44,8 @@ function AnalysisPanel({ detail, justSaved, onFinished }: Props) {
     const jobId = runner ? savedJobId(contractId) : null
     return jobId ? { kind: 'running', jobId, stage: null, queued: true, startedAt: Date.now() } : { kind: 'intro' }
   })
-  const [effectiveDate, setEffectiveDate] = useState(guess?.value ?? '')
+  // 기준 날짜는 오늘(점검하는 날)로 채웁니다. 계약서에서 찾은 근로 시작일은 참고로 보여줍니다.
+  const [effectiveDate, setEffectiveDate] = useState(todayISO)
   const [employees, setEmployees] = useState('')
   const [weeklyHours, setWeeklyHours] = useState('')
   const [workType, setWorkType] = useState('')
@@ -172,14 +173,21 @@ function AnalysisPanel({ detail, justSaved, onFinished }: Props) {
               aria-describedby="an-date-help"
             />
             <p id="an-date-help" className="field__help">
-              {guess && guess.value === effectiveDate ? (
+              이 날짜에 시행 중인 법령으로 판단해요. 오늘 기준으로 점검하려면 그대로 두세요.
+              {guess && (
                 <>
-                  계약서의 <q>{guess.line.length > 40 ? guess.line.slice(0, 40) + '…' : guess.line}</q>에서 찾았어요.
+                  <br />
+                  계약서의 근로 시작일: <b>{guess.value}</b> (
+                  <q>{guess.line.length > 30 ? guess.line.slice(0, 30) + '…' : guess.line}</q>)
                 </>
-              ) : (
-                '근로를 시작하는 날을 넣어 주세요. 이 날짜에 시행 중인 법령으로 판단해요.'
               )}
             </p>
+            {effectiveDate && effectiveDate < LAW_DATA_DATE && (
+              <p className="field__warn">
+                지금 준비된 법령 자료는 {LAW_DATA_DATE.replace(/-/g, '.')} 개정 기준이에요. 이보다 이른 날짜로 하면
+                근로기준법 근거를 쓸 수 없어 대부분 판단을 보류해요.
+              </p>
+            )}
             {year !== null && year !== SUPPORTED_YEAR && (
               <p className="field__warn">
                 지금은 {SUPPORTED_YEAR}년 법령·최저임금만 준비돼 있어요. 다른 연도면 일부 항목은 판단을 보류해요.

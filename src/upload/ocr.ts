@@ -198,6 +198,12 @@ export function revokePreviews(pages: { previewUrl: string }[]) {
 
 type PdfTextItem = { str: string; hasEOL: boolean; transform: number[]; width: number; height: number }
 
+/** 줄을 묶을 때 쓰는 PDF 좌표 정보 */
+type LineMeta = { x0: number; x1: number; top: number; size: number }
+
+/** 새 조항이나 항목이 시작되는 줄 ("1.", "제3조", "(근로자)", "가.", "①" 등) */
+const NEW_ITEM = /^(\d+\s*[.)]|제\s*\d+\s*조|[(（［[]|[가-하]\s*[.)]|[①-⑳]|[-•·※*])/
+
 /**
  * PDF 글자 조각을 줄 단위로 묶습니다.
  * 조각은 글꼴이 바뀔 때마다 나뉘므로(예: "10" + "시") 실제로 떨어져 있을 때만 띄어 씁니다.
@@ -205,40 +211,100 @@ type PdfTextItem = { str: string; hasEOL: boolean; transform: number[]; width: n
  */
 function pdfLines(items: unknown[], toViewport: (m: number[]) => number[], scale: number): ExtractedLine[] {
   const lines: ExtractedLine[] = []
+  const metas: LineMeta[] = []
   let text = ''
   let box: Box | null = null
+  let meta: LineMeta | null = null
   let prev: { endX: number; y: number; size: number } | null = null
 
   const flush = () => {
     const t = text.replace(/\s+/g, ' ').trim()
-    if (t) lines.push({ text: t, low: false, box })
+    if (t && meta) {
+      lines.push({ text: t, low: false, box })
+      metas.push(meta)
+    }
     text = ''
     box = null
+    meta = null
     prev = null
   }
 
   for (const raw of items) {
     if (typeof raw !== 'object' || raw === null || !('str' in raw)) continue
     const it = raw as PdfTextItem
-    if (it.str) {
+    // 글꼴에 따라 띄어쓰기가 제어 문자(예: \u0001)로 나옵니다. 그대로 두면 띄어쓰기가 모두 사라집니다.
+    // oxlint-disable-next-line no-control-regex -- 제어 문자를 찾는 것이 목적입니다.
+    const str = it.str.replace(/[\u0000-\u001f\u007f]/g, ' ')
+    if (str) {
       const x = it.transform[4]
       const y = it.transform[5]
       const size = Math.abs(it.height) || Math.abs(it.transform[3]) || 10
       if (prev && Math.abs(y - prev.y) > prev.size * 0.5) flush() // 다른 줄
       else if (prev && x - prev.endX > size * 0.15 && !text.endsWith(' ')) text += ' '
-      text += it.str
-      const m = toViewport(it.transform)
-      const h = Math.hypot(m[2], m[3])
-      const b = { x0: m[4], y0: m[5] - h, x1: m[4] + it.width * scale, y1: m[5] }
-      box = box
-        ? { x0: Math.min(box.x0, b.x0), y0: Math.min(box.y0, b.y0), x1: Math.max(box.x1, b.x1), y1: Math.max(box.y1, b.y1) }
-        : b
+      text += str
+      if (str.trim()) {
+        const m = toViewport(it.transform)
+        const h = Math.hypot(m[2], m[3])
+        const b = { x0: m[4], y0: m[5] - h, x1: m[4] + it.width * scale, y1: m[5] }
+        box = box
+          ? { x0: Math.min(box.x0, b.x0), y0: Math.min(box.y0, b.y0), x1: Math.max(box.x1, b.x1), y1: Math.max(box.y1, b.y1) }
+          : b
+        meta = meta
+          ? { x0: Math.min(meta.x0, x), x1: Math.max(meta.x1, x + it.width), top: Math.max(meta.top, y), size: Math.max(meta.size, size) }
+          : { x0: x, x1: x + it.width, top: y, size }
+      }
       prev = { endX: x + it.width, y, size }
     }
     if (it.hasEOL) flush()
   }
   flush()
-  return lines
+  return joinWrapped(lines, metas)
+}
+
+/**
+ * 문서 폭이 모자라 자동으로 줄이 바뀐 곳을 다시 한 줄로 잇습니다.
+ * 백엔드는 조항 안의 줄바꿈을 그대로 두고, AI가 인용한 문구가 원문에 그대로 있는지 검사합니다.
+ * "연장·야간근로에 대⏎한 수당"처럼 낱말 중간에서 끊기면 인용이 원문과 달라져 분석이 실패하므로 잇습니다.
+ *
+ * 이어진 줄로 보는 조건: 다음 줄의 첫 낱말이 앞 줄 끝에 들어갈 자리가 없고, 다음 줄이 같은 왼쪽에서 바로 아래에 이어지며,
+ * 새 조항·항목 번호로 시작하지 않을 때. PDF에는 줄 끝 띄어쓰기 정보가 없어서 띄어쓰기 한 칸으로 잇습니다.
+ */
+function joinWrapped(lines: ExtractedLine[], metas: LineMeta[]): ExtractedLine[] {
+  if (lines.length < 2) return lines
+  const right = Math.max(...metas.map((m) => m.x1))
+  const out: ExtractedLine[] = [lines[0]]
+  let last = metas[0]
+  for (let i = 1; i < lines.length; i++) {
+    const m = metas[i]
+    // 다음 줄의 첫 낱말이 앞 줄 남은 자리에 들어가지 않으면 '자리가 없어 넘어간 줄'로 봅니다.
+    const firstWord = lines[i].text.split(' ')[0]
+    const firstWordWidth = Math.min(firstWord.length, 12) * m.size * 0.9
+    const wrapped =
+      right - last.x1 < firstWordWidth + last.size * 0.5 && // 앞 줄이 오른쪽 끝까지 참
+      Math.abs(m.x0 - last.x0) <= last.size && // 같은 왼쪽에서 시작 (들여쓰기 없음)
+      last.top - m.top > 0 &&
+      last.top - m.top <= last.size * 2.1 && // 문단 간격이 아닌 줄 간격
+      Math.abs(m.size - last.size) <= last.size * 0.2 && // 같은 글자 크기
+      !NEW_ITEM.test(lines[i].text)
+    if (wrapped) {
+      const a = out[out.length - 1]
+      const b = lines[i]
+      out[out.length - 1] = {
+        text: `${a.text} ${b.text}`,
+        low: a.low || b.low,
+        box:
+          a.box && b.box
+            ? { x0: Math.min(a.box.x0, b.box.x0), y0: Math.min(a.box.y0, b.box.y0), x1: Math.max(a.box.x1, b.box.x1), y1: Math.max(a.box.y1, b.box.y1) }
+            : (a.box ?? b.box),
+      }
+      // 이어 붙인 줄이 또 오른쪽 끝까지 차 있으면 다음 줄도 이어 붙입니다.
+      last = { ...m, x0: last.x0 }
+    } else {
+      out.push(lines[i])
+      last = m
+    }
+  }
+  return out
 }
 
 function canvasToUrl(canvas: HTMLCanvasElement) {

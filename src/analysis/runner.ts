@@ -10,7 +10,7 @@ import type { AnalysisJobResponse, JobAnalysisResult, JobStage, StartAnalysisReq
  * 실제 분석 연결 스위치.
  * Gemini 무료 사용량 때문에 꺼 두었습니다. 켜면 실제 계약서의 [점검 시작]이 백엔드 분석을 시작합니다.
  */
-export const ANALYSIS_LIVE = false
+export const ANALYSIS_LIVE = true
 
 export type Runner = {
   /** 예시 응답으로 도는지 */
