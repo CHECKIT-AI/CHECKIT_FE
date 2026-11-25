@@ -18,6 +18,7 @@ import {
   formatDate,
   groupCounts,
   groupOf,
+  isBelowMinimumWage,
   isDiscovered,
   isPresenceUnclear,
   isWritten,
@@ -205,8 +206,10 @@ function ItemDetail({ item, citations }: { item: CheckItem; citations: ReturnTyp
 
       {explanation.held && (
         <div className="hold" role="note">
-          <strong>판단을 보류했어요</strong>
-          {category === 'MISSING'
+          <strong>{isBelowMinimumWage(item) ? 'AI가 최저임금 고시 원문으로 확인하지는 못했어요' : '판단을 보류했어요'}</strong>
+          {isBelowMinimumWage(item)
+            ? '다만 계약서의 시급이 해당 연도 최저임금 기준액보다 낮게 적혀 있어요. 실제 지급액과 수당 포함 여부를 꼭 확인해 보세요.'
+            : category === 'MISSING'
             ? '근거가 되는 법령을 확인하지 못해 "누락"이라고 단정하지 않았어요. 계약서에 이 내용이 있는지 사장님께 직접 확인해 보세요.'
             : '근거가 되는 법령이나 적용 시점을 확인하지 못해, 위반인지 아닌지 단정하지 않았어요. 아래 내용을 참고해 사장님께 직접 확인해 보세요.'}
         </div>

@@ -231,5 +231,15 @@ export function explanationOf(item: CheckItem): Explanation {
   return { held, text: stripHold(item.rule_candidate?.explanation ?? '').text }
 }
 
+/**
+ * 규칙 검사가 '계약서 시급이 그해 최저임금보다 낮다'고 찾은 항목인지.
+ * 이때 판단 보류는 대부분 법령 검색에 그해 최저임금 고시가 들어오지 않아 AI가 근거를 못 붙인 경우입니다.
+ * (기준 연도의 고시가 아예 없는 경우의 MINIMUM_WAGE는 설명이 달라 여기에 해당하지 않습니다.)
+ */
+export function isBelowMinimumWage(item: CheckItem) {
+  const ruleText = item.rule_candidate?.explanation ?? item.explanation
+  return item.check_code === 'MINIMUM_WAGE' && /기준액보다\s*낮/.test(ruleText)
+}
+
 /** 이 길이를 넘는 인용 문구는 접어서 보여줍니다. */
 export const LONG_QUOTE = 120
