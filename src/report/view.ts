@@ -39,6 +39,7 @@ const CHECK_TITLE: Record<string, string> = {
   MISSING_WORKPLACE: '근무 장소',
   MISSING_DUTIES: '종사할 업무',
   PRESET_PENALTY: '위약금·손해배상 예정',
+  RETIREMENT_PAY_WAIVER: '퇴직금 포기·임금 포함',
   MINIMUM_WAGE: '최저임금 미달 가능성',
   MINIMUM_WAGE_MONTHLY: '월급 기준 최저임금 미달 가능성',
   OVERTIME_PREMIUM: '가산수당 배제',
