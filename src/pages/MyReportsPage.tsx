@@ -14,8 +14,11 @@ const TITLE: Record<string, string> = { EMPLOYMENT: '근로계약서' }
 
 const titleOf = (r: ReportListItem) => TITLE[r.contract.contract_type] ?? '계약서'
 
-/** 개발 서버에서만 실제 목록 아래에 예시 리포트를 함께 보여줍니다. */
-const SHOW_SAMPLES = import.meta.env.DEV
+/**
+ * 실제 목록 아래에 예시 리포트를 함께 보여줄지. 실제 분석이 연결돼 지금은 끕니다.
+ * 화면 확인이 필요하면 import.meta.env.DEV로 바꾸세요. (예시 페이지 /reports/sample-* 는 그대로 열 수 있어요)
+ */
+const SHOW_SAMPLES = false
 
 type ListState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; reports: ReportListItem[] }
 
